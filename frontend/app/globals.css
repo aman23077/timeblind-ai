@@ -473,20 +473,32 @@ button {
   background: var(--surface-soft);
 }
 
-.auth-mode-tabs button {
+.auth-mode-tabs label {
   width: 100%;
   min-height: 42px;
+  display: grid;
+  place-items: center;
   padding: 9px 12px;
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
+  cursor: pointer;
+  font-weight: 800;
   box-shadow: none;
 }
 
-.auth-mode-tabs button.active {
+.auth-mode-tabs label.active {
   background: var(--surface);
   color: var(--ink);
   box-shadow: var(--shadow-soft);
+}
+
+.auth-mode-tabs input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .login-helper-card {
@@ -496,6 +508,42 @@ button {
   border: 1px solid var(--line);
   border-radius: 18px;
   background: rgba(37, 99, 235, 0.07);
+}
+
+.auth-action-card,
+.register-fields-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(248, 250, 252, 0.72);
+}
+
+.auth-action-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.auth-action-card .login-helper-card {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.register-fields-card > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.register-fields-card strong {
+  color: var(--ink);
+}
+
+.register-fields-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
 }
 
 .login-helper-card strong {
@@ -1431,9 +1479,28 @@ button:disabled {
 }
 
 .compact-list li.task-card {
+  padding: 16px;
+}
+
+.compact-list li.task-card,
+.task-card-link {
   display: grid;
   gap: 11px;
+}
+
+.task-card-link {
+  margin: -16px;
   padding: 16px;
+  border-radius: inherit;
+  color: inherit;
+}
+
+.task-card-clickable {
+  cursor: pointer;
+}
+
+.task-card-clickable:hover .task-card-cta {
+  transform: translateX(2px);
 }
 
 .timeline-list li:hover,
@@ -1506,6 +1573,19 @@ button:disabled {
 
 .task-link-button {
   margin-top: 12px;
+}
+
+.task-card-cta {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 2px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 900;
+  transition: transform 140ms ease;
 }
 
 .task-history-toggle {
@@ -2214,7 +2294,7 @@ button:disabled {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: 140;
   display: grid;
   place-items: center;
   padding: 24px;
@@ -2305,8 +2385,13 @@ button:disabled {
   }
 
   .welcome-onboarding-card {
+    order: 1;
     justify-self: stretch;
     width: 100%;
+  }
+
+  .welcome-copy {
+    order: 2;
   }
 
   .focus-session-grid .warm-panel {
@@ -2356,6 +2441,10 @@ button:disabled {
     border-radius: 24px;
   }
 
+  .welcome-layout {
+    gap: 18px;
+  }
+
   .welcome-topbar {
     align-items: flex-start;
   }
@@ -2365,6 +2454,7 @@ button:disabled {
   }
 
   .welcome-theme-switch {
+    width: auto;
     min-width: 44px;
     padding: 8px;
     font-size: 0;
@@ -2375,11 +2465,11 @@ button:disabled {
   }
 
   .welcome-visual-card {
-    grid-template-columns: 1fr;
+    display: none;
   }
 
-  .planner-orbit {
-    width: 118px;
+  .welcome-copy h1 {
+    font-size: clamp(2.2rem, 12vw, 3.5rem);
   }
 
   .app-shell,
@@ -2613,6 +2703,29 @@ button:disabled {
     min-height: 48px;
   }
 
+  .welcome-theme-switch {
+    width: auto;
+  }
+
+  .welcome-theme-switch span {
+    flex: 0 0 auto;
+  }
+
+  .auth-switch-copy button {
+    display: inline;
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .auth-mode-tabs label {
+    width: 100%;
+  }
+
+  .auth-action-card {
+    grid-template-columns: 1fr;
+  }
+
   .sidebar-toggle {
     width: 54px;
     min-width: 54px;
@@ -2645,6 +2758,10 @@ button:disabled {
     width: 100%;
     max-height: 88vh;
     border-radius: 22px;
+  }
+
+  .modal-card {
+    padding-bottom: 104px;
   }
 
   .session-flow-modal {
@@ -2693,6 +2810,10 @@ button:disabled {
   .action-list li,
   .result-card {
     border-radius: 16px;
+  }
+
+  .plan-summary-panel {
+    padding-bottom: 104px;
   }
 
   .review-panel-header h2 {

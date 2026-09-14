@@ -59,7 +59,6 @@ const defaultScheduleForm = {
 };
 
 type AppPage = "dashboard" | "tasks" | "schedule" | "focus" | "review" | "settings";
-type AuthMode = "login" | "register";
 type ReviewPeriod = "day" | "week" | "month" | "all";
 type PendingSort = "urgency" | "deadline" | "newest" | "shortest";
 type CompletedSort = "recent" | "oldest" | "longest" | "title";
@@ -87,7 +86,6 @@ export function TimeblindShell() {
   const [schedulePlan, setSchedulePlan] = useState<ScheduleGenerationResponse | null>(null);
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("week");
-  const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [reviewAnchorDate, setReviewAnchorDate] = useState(new Date().toISOString().slice(0, 10));
   const [pendingSort, setPendingSort] = useState<PendingSort>("urgency");
   const [completedSort, setCompletedSort] = useState<CompletedSort>("recent");
@@ -155,8 +153,10 @@ export function TimeblindShell() {
     setError(null);
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "").trim();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const authIntent = submitter?.value === "register" ? "register" : "login";
 
-    if (authMode === "login") {
+    if (authIntent === "login") {
       if (!email) {
         setError("Enter your registered email to continue.");
         return;
@@ -176,13 +176,18 @@ export function TimeblindShell() {
 
     const payload = {
       email,
-      display_name: String(formData.get("displayName") ?? ""),
+      display_name: String(formData.get("displayName") ?? "").trim(),
       time_zone: String(formData.get("timeZone") ?? "Asia/Kolkata"),
       preferred_nudge_style: String(formData.get("preferredNudgeStyle") ?? "supportive"),
       participant_type: String(formData.get("participantType") ?? "student"),
       primary_task_focus: String(formData.get("primaryTaskFocus") ?? "study"),
       consent_to_research: formData.get("consentToResearch") === "on" ? "true" : "false"
     };
+
+    if (!payload.display_name) {
+      setError("Enter your name to register.");
+      return;
+    }
 
     if (payload.consent_to_research !== "true") {
       setError("Please accept the consent checkbox to continue.");
@@ -370,6 +375,8 @@ export function TimeblindShell() {
             window.location.href = `/session?taskId=${encodeURIComponent(session.task_id)}&timeBlockId=${encodeURIComponent(
               timeBlock.id
             )}`;
+          } else {
+            setError("This scheduled block is not linked to a task, so it cannot open a focus session yet.");
           }
         } catch (startError) {
           setError(startError instanceof Error ? startError.message : "Could not start scheduled session.");
@@ -602,121 +609,78 @@ export function TimeblindShell() {
 
               <form className="onboarding-card welcome-onboarding-card" onSubmit={handleOnboarding}>
                 <div>
-                  <p className="eyebrow">{authMode === "login" ? "Login" : "Register"}</p>
-                  <h2>{authMode === "login" ? "Welcome back" : "Start your workspace"}</h2>
-                  <p className="subtle-copy">
-                    {authMode === "login"
-                      ? "Use the email you registered with to reopen your existing workspace."
-                      : "Create a real user record in the project database."}
-                  </p>
-                </div>
-                <div className="auth-mode-tabs" role="tablist" aria-label="Login or register">
-                  <button
-                    aria-selected={authMode === "login"}
-                    className={authMode === "login" ? "active" : ""}
-                    type="button"
-                    onClick={() => {
-                      setAuthMode("login");
-                      setError(null);
-                    }}
-                  >
-                    Login
-                  </button>
-                  <button
-                    aria-selected={authMode === "register"}
-                    className={authMode === "register" ? "active" : ""}
-                    type="button"
-                    onClick={() => {
-                      setAuthMode("register");
-                      setError(null);
-                    }}
-                  >
-                    Register
-                  </button>
+                  <p className="eyebrow">Login or Register</p>
+                  <h2>Start your workspace</h2>
+                  <p className="subtle-copy">Login with an existing email, or register below if this is your first time.</p>
                 </div>
                 <label>
                   Email
                   <input name="email" type="email" required placeholder="you@example.com" />
                 </label>
 
-                {authMode === "register" ? (
-                  <>
-                    <label>
-                      Name
-                      <input name="displayName" required placeholder="Aarush" />
-                    </label>
-                    <label>
-                      Time zone
-                      <input name="timeZone" defaultValue="Asia/Kolkata" required />
-                    </label>
-                    <div className="form-grid">
-                      <label>
-                        I am mainly a
-                        <select name="participantType" defaultValue="student">
-                          <option value="student">Student</option>
-                          <option value="developer">Developer</option>
-                          <option value="working_professional">Working professional</option>
-                          <option value="other">Other</option>
-                        </select>
-                      </label>
-                      <label>
-                        I mostly want to track
-                        <select name="primaryTaskFocus" defaultValue="study">
-                          <option value="study">Study tasks</option>
-                          <option value="coding">Coding tasks</option>
-                          <option value="assignments">Assignments</option>
-                          <option value="writing">Writing</option>
-                          <option value="daily_admin">Daily admin</option>
-                          <option value="mixed">Mixed work</option>
-                        </select>
-                      </label>
-                    </div>
-                    <label>
-                      Reminder style
-                      <select name="preferredNudgeStyle" defaultValue="supportive">
-                        <option value="supportive">Supportive</option>
-                        <option value="direct">Direct</option>
-                        <option value="minimal">Minimal</option>
-                      </select>
-                    </label>
-                    <label className="consent-card">
-                      <input name="consentToResearch" type="checkbox" required />
-                      <span>
-                        I agree that my task timing and feedback data can be used for academic/project analysis.
-                      </span>
-                    </label>
-                  </>
-                ) : (
+                <div className="auth-action-card">
                   <div className="login-helper-card">
                     <strong>Email-only demo login</strong>
                     <p>No password yet. If the email exists in the database, we reopen that workspace.</p>
                   </div>
-                )}
+                  <button name="authIntent" type="submit" value="login" disabled={isPending}>
+                    {isPending ? "Opening workspace..." : "Login"}
+                  </button>
+                </div>
 
-                <button type="submit" disabled={isPending}>
-                  {isPending
-                    ? authMode === "login"
-                      ? "Opening workspace..."
-                      : "Creating your space..."
-                    : authMode === "login"
-                      ? "Login"
-                      : "Register and continue"}
-                </button>
-                {authMode === "login" ? (
-                  <p className="auth-switch-copy">
-                    New here?{" "}
-                    <button type="button" onClick={() => setAuthMode("register")}>
-                      Register first
-                    </button>
-                  </p>
-                ) : (
-                  <p className="auth-switch-copy">
-                    Already registered?{" "}
-                    <button type="button" onClick={() => setAuthMode("login")}>
-                      Login instead
-                    </button>
-                  </p>
-                )}
+                <div className="register-fields-card">
+                  <div>
+                    <strong>New user?</strong>
+                    <p>Fill these once so the database has your study profile.</p>
+                  </div>
+                  <label>
+                    Name
+                    <input name="displayName" placeholder="Aarush" />
+                  </label>
+                  <label>
+                    Time zone
+                    <input name="timeZone" defaultValue="Asia/Kolkata" />
+                  </label>
+                  <div className="form-grid">
+                    <label>
+                      I am mainly a
+                      <select name="participantType" defaultValue="student">
+                        <option value="student">Student</option>
+                        <option value="developer">Developer</option>
+                        <option value="working_professional">Working professional</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </label>
+                    <label>
+                      I mostly want to track
+                      <select name="primaryTaskFocus" defaultValue="study">
+                        <option value="study">Study tasks</option>
+                        <option value="coding">Coding tasks</option>
+                        <option value="assignments">Assignments</option>
+                        <option value="writing">Writing</option>
+                        <option value="daily_admin">Daily admin</option>
+                        <option value="mixed">Mixed work</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label>
+                    Reminder style
+                    <select name="preferredNudgeStyle" defaultValue="supportive">
+                      <option value="supportive">Supportive</option>
+                      <option value="direct">Direct</option>
+                      <option value="minimal">Minimal</option>
+                    </select>
+                  </label>
+                  <label className="consent-card">
+                    <input name="consentToResearch" type="checkbox" />
+                    <span>
+                      I agree that my task timing and feedback data can be used for academic/project analysis.
+                    </span>
+                  </label>
+                  <button name="authIntent" type="submit" value="register" disabled={isPending}>
+                    {isPending ? "Creating your space..." : "Register and continue"}
+                  </button>
+                </div>
                 {error ? <p className="error-banner">{error}</p> : null}
               </form>
             </div>
@@ -1966,9 +1930,9 @@ function TaskCard({ showFocusLink = false, task }: { showFocusLink?: boolean; ta
     : task.status === "in_progress"
       ? "status-active"
       : "status-planned";
-
-  return (
-    <li className="task-card">
+  const canOpenFocus = showFocusLink && !isCompletedTask(task);
+  const cardContent = (
+    <>
       <div className="task-card-header">
         <strong>{task.title}</strong>
         <span className={`status-chip ${statusClass}`}>{formatTaskStatus(task.status)}</span>
@@ -1983,11 +1947,19 @@ function TaskCard({ showFocusLink = false, task }: { showFocusLink?: boolean; ta
       <p className="task-card-summary">
         Planned {formatDurationMinutes(task.estimated_minutes)}. Actual {formatDurationMinutes(task.actual_minutes)}.
       </p>
-      {showFocusLink && !isCompletedTask(task) ? (
-        <Link className="ghost-button task-link-button" href={`/session?taskId=${encodeURIComponent(task.id)}`}>
-          Open focus session
+      {canOpenFocus ? <span className="task-card-cta">Open focus session</span> : null}
+    </>
+  );
+
+  return (
+    <li className={canOpenFocus ? "task-card task-card-clickable" : "task-card"}>
+      {canOpenFocus ? (
+        <Link className="task-card-link" href={`/session?taskId=${encodeURIComponent(task.id)}`}>
+          {cardContent}
         </Link>
-      ) : null}
+      ) : (
+        cardContent
+      )}
     </li>
   );
 }
