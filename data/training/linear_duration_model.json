@@ -1,0 +1,63 @@
+{
+  "model_type": "standard_library_linear_regression",
+  "target": "actual_minutes",
+  "feature_names": [
+    "estimated_minutes",
+    "quantity_value",
+    "completed_session_count",
+    "has_deadline",
+    "task_type=assignment",
+    "task_type=meeting_prep",
+    "task_type=reading",
+    "task_type=study",
+    "task_type=writing",
+    "difficulty=easy",
+    "difficulty=hard",
+    "difficulty=medium"
+  ],
+  "means": [
+    94.58333333333333,
+    4.208333333333333,
+    1.375,
+    0.4166666666666667,
+    0.5416666666666666,
+    0.0,
+    0.125,
+    0.3333333333333333,
+    0.0,
+    0.3333333333333333,
+    0.16666666666666666,
+    0.5
+  ],
+  "stds": [
+    42.27678309532182,
+    11.007494290507514,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
+  "weights": [
+    -8.557022986246183,
+    18.647889104967387,
+    64.86322098895279,
+    -5.5915301619290005,
+    20.319532674181964,
+    0.0,
+    -4.03677047467856,
+    -16.282762199503374,
+    0.0,
+    -27.17090755349636,
+    28.11516303553427,
+    -0.9442554820378924
+  ],
+  "bias": 99.33333333333333,
+  "train_rows": 24,
+  "test_rows": 7
+}

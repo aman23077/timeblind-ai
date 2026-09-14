@@ -9,11 +9,12 @@ import {
   endSession,
   getTask,
   getTimeBlock,
+  listTasks,
   listSessions,
   recoverScheduleFromBlock,
   startTimeBlockSession
 } from "../../lib/api";
-import type { ScheduleGenerationResponse, ScheduleRecoveryResponse, SessionRecord, TaskDetail, UserDetail } from "../../lib/api";
+import type { ScheduleGenerationResponse, ScheduleRecoveryResponse, SessionRecord, TaskDetail, TaskSummary, UserDetail } from "../../lib/api";
 
 const SESSION_KEY = "timeblind-user";
 const THEME_KEY = "timeblind-theme";
@@ -34,6 +35,11 @@ const SHORTER_REASONS = [
 ] as const;
 
 type CompletionOutcome = "less_than_expected" | "as_expected" | "longer_than_expected";
+type CompletionTone = {
+  title: string;
+  message: string;
+  nextPrompt: string;
+};
 
 export function SessionPageClient() {
   const searchParams = useSearchParams();
@@ -42,6 +48,7 @@ export function SessionPageClient() {
 
   const [user, setUser] = useState<UserDetail | null>(null);
   const [task, setTask] = useState<TaskDetail | null>(null);
+  const [nextPendingTask, setNextPendingTask] = useState<TaskSummary | null>(null);
   const [timeBlock, setTimeBlock] = useState<ScheduleGenerationResponse["time_blocks"][number] | null>(null);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [activeSession, setActiveSession] = useState<SessionRecord | null>(null);
@@ -127,14 +134,16 @@ export function SessionPageClient() {
   async function loadTaskContext(nextTaskId: string, userId: string, nextTimeBlockId?: string | null) {
     try {
       setError(null);
-      const [taskDetail, taskSessions, blockDetail] = await Promise.all([
+      const [taskDetail, taskSessions, blockDetail, taskItems] = await Promise.all([
         getTask(nextTaskId),
         listSessions(userId, nextTaskId),
-        nextTimeBlockId ? getTimeBlock(nextTimeBlockId) : Promise.resolve(null)
+        nextTimeBlockId ? getTimeBlock(nextTimeBlockId) : Promise.resolve(null),
+        listTasks(userId)
       ]);
       setTask(taskDetail);
       setTimeBlock(blockDetail);
       setSessions(taskSessions);
+      setNextPendingTask(findNextPendingTask(taskItems, nextTaskId));
       const runningSession =
         taskSessions.find(
           (session) =>
@@ -204,7 +213,7 @@ export function SessionPageClient() {
               ? new Date(startedAt.getTime() + manualDurationMinutes * 60 * 1000)
               : new Date();
 
-          await endSession(activeSession.id, {
+          const completedSession = await endSession(activeSession.id, {
             ended_at: effectiveEndedAt.toISOString(),
             actual_end: effectiveEndedAt.toISOString(),
             status: "completed",
@@ -214,6 +223,7 @@ export function SessionPageClient() {
           });
 
           setActiveSession(null);
+          setSessions((current) => [completedSession, ...current.filter((session) => session.id !== completedSession.id)]);
           setSeconds(0);
           resetCompletionFeedback();
           setShowCompletionModal(false);
@@ -342,6 +352,10 @@ export function SessionPageClient() {
       : completionOutcome === "less_than_expected"
         ? SHORTER_REASONS
         : [];
+  const latestCompletedSession = getLatestCompletedSession(sessions);
+  const shouldShowCompletionState =
+    !activeSession && Boolean(latestCompletedSession) && (task?.status === "completed" || (task?.actual_minutes ?? 0) > 0);
+  const completionTone = latestCompletedSession ? getCompletionTone(latestCompletedSession, task) : null;
 
   if (!user) {
     return (
@@ -382,13 +396,15 @@ export function SessionPageClient() {
   return (
     <div className="app-shell session-app-shell" data-theme={theme}>
       <main className="content-shell session-content-shell">
-        <section className="dashboard-header">
+        <section className="dashboard-header focus-session-hero">
           <div className="panel-header">
             <div>
-              <p className="eyebrow">Task Session</p>
+              <p className="eyebrow">{shouldShowCompletionState ? "Task completed" : "Task Session"}</p>
               <h1>{task?.title ?? "Loading task..."}</h1>
               <p className="lede">
-                Start a focus session for this task and compare the planned effort with the actual time you spend.
+                {shouldShowCompletionState
+                  ? "History recorded. This task can now teach the planner what real work looked like."
+                  : "Start a focus session for this task and compare the planned effort with the actual time you spend."}
               </p>
             </div>
             <div className="header-actions">
@@ -401,113 +417,123 @@ export function SessionPageClient() {
 
       {error ? <p className="error-banner">{error}</p> : null}
 
-      <section className="dashboard-grid">
-        <article className="panel warm-panel compact-panel">
-          <div className="panel-header">
-            <h2>Focus timer</h2>
-            <p>Use the timer below to log the actual time spent on this task.</p>
-          </div>
+      {shouldShowCompletionState && latestCompletedSession && completionTone ? (
+        <CompletionState
+          completionTone={completionTone}
+          latestCompletedSession={latestCompletedSession}
+          nextPendingTask={nextPendingTask}
+          task={task}
+          timeBlock={timeBlock}
+          onStartRecoveredBlock={recoveryPlan?.next_time_block?.task_id ? beginRecoveredBlock : undefined}
+        />
+      ) : (
+        <section className="dashboard-grid focus-session-grid">
+          <article className="panel warm-panel compact-panel">
+            <div className="panel-header">
+              <h2>Focus timer</h2>
+              <p>Start here. Everything else is secondary until this block is done.</p>
+            </div>
 
-          <div className="result-card">
-            <div className="result-row">
-              <span>Status</span>
-              <strong>{activeSession ? "Running" : "Idle"}</strong>
-            </div>
-            <div className="timer-display">
-              {formatElapsed(seconds)}
-            </div>
-            <div className="session-action-row">
-              <button type="button" onClick={handleStart} disabled={isPending || Boolean(activeSession)}>
-                {activeSession ? "Session running" : "Start focus"}
-              </button>
-              <button
-                type="button"
-                className="ghost-button"
-                onClick={openCompletionModal}
-                disabled={isPending || !activeSession}
-              >
-                Complete session
-              </button>
-              <button
-                type="button"
-                className="ghost-button"
-                onClick={() => void handleCancelSession()}
-                disabled={isPending || !activeSession}
-              >
-                Cancel session
-              </button>
-            </div>
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={useManualDuration}
-                onChange={(event) => setUseManualDuration(event.target.checked)}
-              />
-              Use manual logged time for testing
-            </label>
-            {useManualDuration ? (
-              <div className="manual-duration-grid">
-                <label>
-                  Hours
-                  <input
-                    type="number"
-                    min={0}
-                    value={manualHours}
-                    onChange={(event) => setManualHours(Math.max(0, Number(event.target.value) || 0))}
-                  />
-                </label>
-                <label>
-                  Minutes
-                  <input
-                    type="number"
-                    min={0}
-                    max={59}
-                    value={manualMinutes}
-                    onChange={(event) =>
-                      setManualMinutes(Math.min(59, Math.max(0, Number(event.target.value) || 0)))
-                    }
-                  />
-                </label>
+            <div className="result-card">
+              <div className="result-row">
+                <span>Status</span>
+                <strong>{activeSession ? "Running" : "Idle"}</strong>
               </div>
-            ) : null}
-            <p className="subtle-copy">
-              {useManualDuration
-                ? `Testing override is on: completing this session will log ${formatDurationMinutes(
-                    manualHours * 60 + manualMinutes
-                  )}.`
-                : "Manual override is off: logged time matches the real session duration."}
-            </p>
-          </div>
-        </article>
+              <div className="timer-display">
+                {formatElapsed(seconds)}
+              </div>
+              <div className="session-action-row">
+                <button type="button" onClick={handleStart} disabled={isPending || Boolean(activeSession)}>
+                  {activeSession ? "Session running" : "Start focus"}
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={openCompletionModal}
+                  disabled={isPending || !activeSession}
+                >
+                  Complete session
+                </button>
+                <button
+                  type="button"
+                  className="ghost-button"
+                  onClick={() => void handleCancelSession()}
+                  disabled={isPending || !activeSession}
+                >
+                  Cancel session
+                </button>
+              </div>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={useManualDuration}
+                  onChange={(event) => setUseManualDuration(event.target.checked)}
+                />
+                Use manual logged time for testing
+              </label>
+              {useManualDuration ? (
+                <div className="manual-duration-grid">
+                  <label>
+                    Hours
+                    <input
+                      type="number"
+                      min={0}
+                      value={manualHours}
+                      onChange={(event) => setManualHours(Math.max(0, Number(event.target.value) || 0))}
+                    />
+                  </label>
+                  <label>
+                    Minutes
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={manualMinutes}
+                      onChange={(event) =>
+                        setManualMinutes(Math.min(59, Math.max(0, Number(event.target.value) || 0)))
+                      }
+                    />
+                  </label>
+                </div>
+              ) : null}
+              <p className="subtle-copy">
+                {useManualDuration
+                  ? `Testing override is on: completing this session will log ${formatDurationMinutes(
+                      manualHours * 60 + manualMinutes
+                    )}.`
+                  : "Manual override is off: logged time matches the real session duration."}
+              </p>
+            </div>
+          </article>
 
-        <article className="panel cool-panel compact-panel">
-          <div className="panel-header">
-            <h2>Time comparison</h2>
-            <p>Planned effort comes from the task decomposition. Actual effort comes from completed focus sessions.</p>
-          </div>
+          <article className="panel cool-panel compact-panel session-support-panel">
+            <div className="panel-header">
+              <h2>Time comparison</h2>
+              <p>Planned effort comes from the task decomposition. Actual effort comes from completed focus sessions.</p>
+            </div>
 
-          <div className="result-card">
-            <div className="result-row">
-              <span>Planned</span>
-              <strong>{formatDurationMinutes(task?.estimated_minutes ?? null)}</strong>
+            <div className="result-card">
+              <div className="result-row">
+                <span>Planned</span>
+                <strong>{formatDurationMinutes(task?.estimated_minutes ?? null)}</strong>
+              </div>
+              <div className="result-row">
+                <span>Actual</span>
+                <strong>{formatDurationMinutes(task?.actual_minutes ?? null)}</strong>
+              </div>
+              <div className="result-row">
+                <span>Difference</span>
+                <strong>{formatDelta(task?.estimated_minutes ?? null, task?.actual_minutes ?? null)}</strong>
+              </div>
+              <div className="result-row">
+                <span>Sessions logged</span>
+                <strong>{sessions.filter((session) => session.status === "completed").length}</strong>
+              </div>
+              <p className="subtle-copy">
+                For now, completing a session marks the task finished. We can relax that later when scheduling supports
+                multi-block work.
+              </p>
             </div>
-            <div className="result-row">
-              <span>Actual</span>
-              <strong>{formatDurationMinutes(task?.actual_minutes ?? null)}</strong>
-            </div>
-            <div className="result-row">
-              <span>Difference</span>
-              <strong>{formatDelta(task?.estimated_minutes ?? null, task?.actual_minutes ?? null)}</strong>
-            </div>
-            <div className="result-row">
-              <span>Sessions logged</span>
-              <strong>{sessions.filter((session) => session.status === "completed").length}</strong>
-            </div>
-            <p className="subtle-copy">
-              For now, completing a session marks the task finished. We can relax that later when scheduling supports
-              multi-block work.
-            </p>
-          </div>
 
           {timeBlock ? (
             <div className="result-card">
@@ -561,8 +587,9 @@ export function SessionPageClient() {
               ))}
             </ul>
           ) : null}
-        </article>
-      </section>
+          </article>
+        </section>
+      )}
 
       <section className="dashboard-stack secondary-grid">
         <article className="panel neutral-panel">
@@ -640,16 +667,17 @@ export function SessionPageClient() {
 
               {reasonOptions.length ? (
                 <div className="feedback-reason-grid">
-                    {reasonOptions.map((option) => (
-                      <label key={option} className={feedbackReasons.includes(option) ? "feedback-chip active" : "feedback-chip"}>
-                        <input
-                          type="checkbox"
-                          checked={feedbackReasons.includes(option)}
-                          onChange={() => toggleFeedbackReason(option)}
-                        />
-                        {option}
-                      </label>
-                    ))}
+                  {reasonOptions.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      className={feedbackReasons.includes(option) ? "feedback-chip active" : "feedback-chip"}
+                      onClick={() => toggleFeedbackReason(option)}
+                      aria-pressed={feedbackReasons.includes(option)}
+                    >
+                      <strong>{option}</strong>
+                    </button>
+                  ))}
                 </div>
               ) : null}
 
@@ -754,6 +782,93 @@ export function SessionPageClient() {
   );
 }
 
+function CompletionState({
+  completionTone,
+  latestCompletedSession,
+  nextPendingTask,
+  onStartRecoveredBlock,
+  task,
+  timeBlock
+}: {
+  completionTone: CompletionTone;
+  latestCompletedSession: SessionRecord;
+  nextPendingTask: TaskSummary | null;
+  onStartRecoveredBlock?: () => Promise<void>;
+  task: TaskDetail | null;
+  timeBlock: ScheduleGenerationResponse["time_blocks"][number] | null;
+}) {
+  const actualMinutes = latestCompletedSession.elapsed_minutes ?? task?.actual_minutes ?? null;
+  const plannedMinutes = task?.estimated_minutes ?? null;
+
+  return (
+    <section className="completion-grid">
+      <article className="panel completion-celebration-panel">
+        <div className="completion-check" aria-hidden="true">
+          ✓
+        </div>
+        <p className="eyebrow">History recorded</p>
+        <h2>{completionTone.title}</h2>
+        <p>{completionTone.message}</p>
+        <div className="completion-action-row">
+          {onStartRecoveredBlock ? (
+            <button type="button" onClick={() => void onStartRecoveredBlock()}>
+              Start next scheduled task
+            </button>
+          ) : nextPendingTask ? (
+            <Link className="task-link-button" href={`/session?taskId=${encodeURIComponent(nextPendingTask.id)}`}>
+              Move to next task
+            </Link>
+          ) : (
+            <Link className="task-link-button" href="/">
+              No next task, go dashboard
+            </Link>
+          )}
+          <Link className="ghost-button task-link-button" href="/">
+            Back to dashboard
+          </Link>
+        </div>
+        <p className="subtle-copy">{completionTone.nextPrompt}</p>
+      </article>
+
+      <article className="panel completion-receipt-panel">
+        <div className="panel-header">
+          <h2>Session receipt</h2>
+          <p>This is the data point the app will use for better future estimates.</p>
+        </div>
+        <div className="result-card">
+          <div className="result-row">
+            <span>Task</span>
+            <strong>{task?.title ?? "Completed task"}</strong>
+          </div>
+          <div className="result-row">
+            <span>Planned</span>
+            <strong>{formatDurationMinutes(plannedMinutes)}</strong>
+          </div>
+          <div className="result-row">
+            <span>Actual logged</span>
+            <strong>{formatDurationMinutes(actualMinutes)}</strong>
+          </div>
+          <div className="result-row">
+            <span>Difference</span>
+            <strong>{formatDelta(plannedMinutes, actualMinutes)}</strong>
+          </div>
+          <div className="result-row">
+            <span>Completed at</span>
+            <strong>{latestCompletedSession.ended_at ? formatDate(latestCompletedSession.ended_at) : formatDate(latestCompletedSession.started_at)}</strong>
+          </div>
+          {timeBlock ? (
+            <div className="result-row">
+              <span>Schedule block</span>
+              <strong>{timeBlock.title}</strong>
+            </div>
+          ) : null}
+        </div>
+        <p className="subtle-copy">{describeFeedback(latestCompletedSession)}</p>
+      </article>
+    </section>
+  );
+}
+
 function formatElapsed(totalSeconds: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const remainingSeconds = totalSeconds % 60;
@@ -789,6 +904,78 @@ function describeSessionDuration(session: SessionRecord) {
 function latestElapsedMinutes(sessions: SessionRecord[], timeBlockId: string) {
   const matching = sessions.find((session) => session.time_block_id === timeBlockId && session.status === "completed");
   return matching?.elapsed_minutes ?? null;
+}
+
+function getLatestCompletedSession(sessions: SessionRecord[]) {
+  return sessions
+    .filter((session) => session.status === "completed")
+    .sort((first, second) => parseApiDate(second.ended_at ?? second.started_at).getTime() - parseApiDate(first.ended_at ?? first.started_at).getTime())[0] ?? null;
+}
+
+function findNextPendingTask(tasks: TaskSummary[], currentTaskId: string) {
+  return (
+    tasks
+      .filter((task) => task.id !== currentTaskId && !isTaskFinished(task))
+      .sort((first, second) => {
+        const firstUrgency = taskUrgencyWeight(first);
+        const secondUrgency = taskUrgencyWeight(second);
+        if (firstUrgency !== secondUrgency) {
+          return secondUrgency - firstUrgency;
+        }
+
+        const firstDeadline = first.deadline_at ? parseApiDate(first.deadline_at).getTime() : Number.POSITIVE_INFINITY;
+        const secondDeadline = second.deadline_at ? parseApiDate(second.deadline_at).getTime() : Number.POSITIVE_INFINITY;
+        if (firstDeadline !== secondDeadline) {
+          return firstDeadline - secondDeadline;
+        }
+
+        return parseApiDate(second.created_at).getTime() - parseApiDate(first.created_at).getTime();
+      })[0] ?? null
+  );
+}
+
+function isTaskFinished(task: TaskSummary) {
+  return task.status === "completed" || (task.actual_minutes ?? 0) > 0;
+}
+
+function taskUrgencyWeight(task: TaskSummary) {
+  if (!task.deadline_at) {
+    return 0;
+  }
+
+  const remainingHours = (parseApiDate(task.deadline_at).getTime() - Date.now()) / 36e5;
+  if (remainingHours <= 12) {
+    return 3;
+  }
+  if (remainingHours <= 48) {
+    return 2;
+  }
+  return 1;
+}
+
+function getCompletionTone(session: SessionRecord, task: TaskDetail | null): CompletionTone {
+  const taskTitle = task?.title ?? "this task";
+
+  switch (session.difficulty_feedback) {
+    case "less_than_expected":
+      return {
+        title: "Nice, that went smoother than expected.",
+        message: `${taskTitle} is completed and the faster finish has been saved to your history.`,
+        nextPrompt: "Use this as a positive signal. The planner can learn which tasks are lighter than expected."
+      };
+    case "longer_than_expected":
+      return {
+        title: "No problem, this is useful data.",
+        message: `${taskTitle} is completed. The extra time and feedback are recorded, so future estimates can adjust.`,
+        nextPrompt: "Take a breath, then move to the next task when you are ready."
+      };
+    default:
+      return {
+        title: "Good job, task completed.",
+        message: `${taskTitle} is logged in your history with actual time and feedback.`,
+        nextPrompt: "You can move to the next task now or return to the dashboard."
+      };
+  }
 }
 
 function getScheduledDurationMinutes(block: ScheduleGenerationResponse["time_blocks"][number]) {

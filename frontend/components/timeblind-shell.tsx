@@ -11,6 +11,7 @@ import {
   createTask,
   decomposeTask,
   ensureUser,
+  getUserByEmail,
   generateSchedule,
   getInsights,
   listEvents,
@@ -32,10 +33,12 @@ const THEME_KEY = "timeblind-theme";
 
 const defaultTaskForm = {
   title: "",
+  hasDeadline: "",
   deadlineAt: "",
-  taskType: "assignment",
+  taskType: "generic",
   difficulty: "medium",
-  quantityValue: ""
+  quantityValue: "",
+  notes: ""
 };
 
 const defaultEventForm = {
@@ -56,18 +59,21 @@ const defaultScheduleForm = {
 };
 
 type AppPage = "dashboard" | "tasks" | "schedule" | "focus" | "review" | "settings";
+type AuthMode = "login" | "register";
 type ReviewPeriod = "day" | "week" | "month" | "all";
 type PendingSort = "urgency" | "deadline" | "newest" | "shortest";
 type CompletedSort = "recent" | "oldest" | "longest" | "title";
 
 const navItems: Array<{ id: AppPage; label: string; icon: string }> = [
-  { id: "dashboard", label: "Dashboard", icon: "D" },
+  { id: "dashboard", label: "Today", icon: "D" },
   { id: "tasks", label: "Tasks", icon: "T" },
   { id: "schedule", label: "Schedule", icon: "S" },
-  { id: "focus", label: "Focus Session", icon: "F" },
+  { id: "focus", label: "Focus", icon: "F" },
   { id: "review", label: "Review", icon: "R" },
-  { id: "settings", label: "Settings", icon: "G" }
+  { id: "settings", label: "Settings", icon: "St" }
 ];
+
+const mobileNavItems = navItems.filter((item) => item.id !== "settings");
 
 export function TimeblindShell() {
   const [user, setUser] = useState<UserDetail | null>(null);
@@ -81,6 +87,7 @@ export function TimeblindShell() {
   const [schedulePlan, setSchedulePlan] = useState<ScheduleGenerationResponse | null>(null);
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
   const [reviewPeriod, setReviewPeriod] = useState<ReviewPeriod>("week");
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [reviewAnchorDate, setReviewAnchorDate] = useState(new Date().toISOString().slice(0, 10));
   const [pendingSort, setPendingSort] = useState<PendingSort>("urgency");
   const [completedSort, setCompletedSort] = useState<CompletedSort>("recent");
@@ -147,12 +154,40 @@ export function TimeblindShell() {
 
     setError(null);
     const formData = new FormData(event.currentTarget);
+    const email = String(formData.get("email") ?? "").trim();
+
+    if (authMode === "login") {
+      if (!email) {
+        setError("Enter your registered email to continue.");
+        return;
+      }
+
+      try {
+        const nextUser = await getUserByEmail(email);
+        window.localStorage.setItem(SESSION_KEY, JSON.stringify(nextUser));
+        setUser(nextUser);
+        setActivePage("dashboard");
+        await loadDashboard(nextUser.id);
+      } catch {
+        setError("No workspace found for this email. Register first, then use Login next time.");
+      }
+      return;
+    }
+
     const payload = {
-      email: String(formData.get("email") ?? ""),
+      email,
       display_name: String(formData.get("displayName") ?? ""),
       time_zone: String(formData.get("timeZone") ?? "Asia/Kolkata"),
-      preferred_nudge_style: "supportive"
+      preferred_nudge_style: String(formData.get("preferredNudgeStyle") ?? "supportive"),
+      participant_type: String(formData.get("participantType") ?? "student"),
+      primary_task_focus: String(formData.get("primaryTaskFocus") ?? "study"),
+      consent_to_research: formData.get("consentToResearch") === "on" ? "true" : "false"
     };
+
+    if (payload.consent_to_research !== "true") {
+      setError("Please accept the consent checkbox to continue.");
+      return;
+    }
 
     try {
       const nextUser = await ensureUser(payload);
@@ -172,10 +207,24 @@ export function TimeblindShell() {
     }
 
     setError(null);
+    if (taskForm.hasDeadline === "yes") {
+      if (!taskForm.deadlineAt) {
+        setError("Pick a deadline or choose No deadline.");
+        return;
+      }
+
+      const deadline = new Date(taskForm.deadlineAt);
+      if (Number.isNaN(deadline.getTime()) || deadline <= new Date()) {
+        setError("Deadline cannot be before the current schedule time.");
+        return;
+      }
+    }
+
     startTransition(() => {
       void (async () => {
         try {
           const quantityValue = parseOptionalNumber(taskForm.quantityValue);
+          const taskNotes = taskForm.notes.trim();
           const plan = await decomposeTask({
             user_id: user.id,
             title: taskForm.title,
@@ -189,6 +238,7 @@ export function TimeblindShell() {
           const task = await createTask({
             user_id: user.id,
             title: taskForm.title,
+            description: taskNotes,
             task_type: taskForm.taskType,
             priority: "high",
             difficulty: taskForm.difficulty,
@@ -339,69 +389,164 @@ export function TimeblindShell() {
   }
 
   function renderTaskForm() {
+    const hasTaskName = taskForm.title.trim().length > 0;
+    const isDeadlineChoiceMade = taskForm.hasDeadline === "yes" || taskForm.hasDeadline === "no";
+    const canSubmitTask = hasTaskName && isDeadlineChoiceMade && (taskForm.hasDeadline !== "yes" || taskForm.deadlineAt);
+    const minimumDeadlineDate = getTodayDateValue();
+    const fallbackDeadline = taskForm.deadlineAt || getDefaultDeadlineValue();
+    const deadlineDate = getDatePart(fallbackDeadline);
+    const deadlineTime = getTimePart(fallbackDeadline);
+
     return (
-      <form className="stack-form" onSubmit={handleTaskPlan}>
-        <label>
-          Task title
-          <input
-            value={taskForm.title}
-            onChange={(event) => setTaskForm((current) => ({ ...current, title: event.target.value }))}
-            placeholder="e.g. Solve 5 DSA problems"
-            required
-          />
-        </label>
-        <label>
-          Deadline (optional)
-          <input
-            type="datetime-local"
-            value={taskForm.deadlineAt}
-            onChange={(event) => setTaskForm((current) => ({ ...current, deadlineAt: event.target.value }))}
-          />
-        </label>
-        <div className="form-grid">
+      <form className="stack-form task-conversation-form" onSubmit={handleTaskPlan}>
+        <div className="conversation-step active">
+          <span>1</span>
           <label>
-            Task type
-            <select
-              value={taskForm.taskType}
-              onChange={(event) => setTaskForm((current) => ({ ...current, taskType: event.target.value }))}
-            >
-              <option value="assignment">Assignment</option>
-              <option value="reading">Reading</option>
-              <option value="study">Study</option>
-              <option value="writing">Writing</option>
-              <option value="coding">Coding</option>
-              <option value="meeting_prep">Meeting prep</option>
-              <option value="admin">Admin</option>
-              <option value="errand">Errand</option>
-              <option value="chore">Chore</option>
-              <option value="exercise">Exercise</option>
-              <option value="creative">Creative</option>
-              <option value="generic">Generic</option>
-            </select>
-          </label>
-          <label>
-            Difficulty
-            <select
-              value={taskForm.difficulty}
-              onChange={(event) => setTaskForm((current) => ({ ...current, difficulty: event.target.value }))}
-            >
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
+            What do you need to do?
+            <input
+              value={taskForm.title}
+              onChange={(event) => setTaskForm((current) => ({ ...current, title: event.target.value }))}
+              placeholder="e.g. finish DBMS ER diagram"
+              required
+              autoFocus
+            />
           </label>
         </div>
-        <label>
-          {getQuantityLabel(taskForm.taskType)}
-          <input
-            type="number"
-            min={1}
-            value={taskForm.quantityValue}
-            onChange={(event) => setTaskForm((current) => ({ ...current, quantityValue: event.target.value }))}
-            placeholder={getQuantityPlaceholder(taskForm.taskType)}
-          />
-        </label>
-        <button type="submit" disabled={isPending}>
+
+        {hasTaskName ? (
+          <div className="conversation-step active">
+            <span>2</span>
+            <div className="conversation-step-body">
+              <p className="modal-question">Does this task have a deadline?</p>
+              <div className="choice-row">
+                <button
+                  className={taskForm.hasDeadline === "yes" ? "choice-button active" : "choice-button"}
+                  type="button"
+                  onClick={() =>
+                    setTaskForm((current) => ({
+                      ...current,
+                      hasDeadline: "yes",
+                      deadlineAt: current.deadlineAt || getDefaultDeadlineValue()
+                    }))
+                  }
+                >
+                  Yes
+                </button>
+                <button
+                  className={taskForm.hasDeadline === "no" ? "choice-button active" : "choice-button"}
+                  type="button"
+                  onClick={() => setTaskForm((current) => ({ ...current, hasDeadline: "no", deadlineAt: "" }))}
+                >
+                  No
+                </button>
+              </div>
+
+              {taskForm.hasDeadline === "yes" ? (
+                <div className="revealed-field deadline-picker-group">
+                  <span className="field-label">When is it due?</span>
+                  <div className="deadline-picker-grid">
+                    <label>
+                      Date
+                      <input
+                        type="date"
+                        value={deadlineDate}
+                        min={minimumDeadlineDate}
+                        onClick={(event) => event.currentTarget.showPicker?.()}
+                        onChange={(event) =>
+                          setTaskForm((current) => ({
+                            ...current,
+                            deadlineAt: combineDateAndTime(event.target.value, getTimePart(current.deadlineAt || getDefaultDeadlineValue()))
+                          }))
+                        }
+                        required
+                      />
+                    </label>
+                    <label>
+                      Time
+                      <select
+                        value={deadlineTime}
+                        onChange={(event) =>
+                          setTaskForm((current) => ({
+                            ...current,
+                            deadlineAt: combineDateAndTime(getDatePart(current.deadlineAt || getDefaultDeadlineValue()), event.target.value)
+                          }))
+                        }
+                        required
+                      >
+                        {getQuarterHourOptions().map((time) => (
+                          <option key={time} value={time}>
+                            {formatTimeOption(time)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <small>Choose a future time. Slots move in 15-minute steps.</small>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+
+        {isDeadlineChoiceMade ? (
+          <details className="advanced-task-details">
+            <summary>Add more context for better prediction</summary>
+            <div className="form-grid">
+              <label>
+                Task type
+                <select
+                  value={taskForm.taskType}
+                  onChange={(event) => setTaskForm((current) => ({ ...current, taskType: event.target.value }))}
+                >
+                  <option value="assignment">Assignment</option>
+                  <option value="reading">Reading</option>
+                  <option value="study">Study</option>
+                  <option value="writing">Writing</option>
+                  <option value="coding">Coding</option>
+                  <option value="meeting_prep">Meeting prep</option>
+                  <option value="admin">Admin</option>
+                  <option value="errand">Errand</option>
+                  <option value="chore">Chore</option>
+                  <option value="exercise">Exercise</option>
+                  <option value="creative">Creative</option>
+                  <option value="generic">Generic</option>
+                </select>
+              </label>
+              <label>
+                Difficulty
+                <select
+                  value={taskForm.difficulty}
+                  onChange={(event) => setTaskForm((current) => ({ ...current, difficulty: event.target.value }))}
+                >
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              {getQuantityLabel(taskForm.taskType)}
+              <input
+                type="number"
+                min={1}
+                value={taskForm.quantityValue}
+                onChange={(event) => setTaskForm((current) => ({ ...current, quantityValue: event.target.value }))}
+                placeholder={getQuantityPlaceholder(taskForm.taskType)}
+              />
+            </label>
+            <label>
+              Notes, reminders, or details (optional)
+              <textarea
+                rows={3}
+                value={taskForm.notes}
+                onChange={(event) => setTaskForm((current) => ({ ...current, notes: event.target.value }))}
+                placeholder={getNotesPlaceholder(taskForm.taskType)}
+              />
+            </label>
+          </details>
+        ) : null}
+
+        <button type="submit" disabled={isPending || !canSubmitTask}>
           {isPending ? "Planning..." : "Create task plan"}
         </button>
       </form>
@@ -412,40 +557,174 @@ export function TimeblindShell() {
     return (
       <div className="app-shell session-app-shell" data-theme={theme}>
         <main className="content-shell session-content-shell">
-          <section className="hero-card">
-            <div className="hero-copy">
-              <p className="eyebrow">Timeblind AI</p>
-              <h1>Build a calmer relationship with time.</h1>
-              <p className="lede">
-                Plan tasks, schedule realistic blocks, run focus sessions, and learn where time actually goes.
-              </p>
-            </div>
-
-            <form className="onboarding-card" onSubmit={handleOnboarding}>
-              <h2>Start your workspace</h2>
-              <label>
-                Email
-                <input name="email" type="email" required placeholder="you@example.com" />
-              </label>
-              <label>
-                Name
-                <input name="displayName" required placeholder="Aarush" />
-              </label>
-              <label>
-                Time zone
-                <input name="timeZone" defaultValue="Asia/Kolkata" required />
-              </label>
-              <button type="submit" disabled={isPending}>
-                {isPending ? "Creating your space..." : "Enter dashboard"}
+          <section className="welcome-page">
+            <header className="welcome-topbar">
+              <div className="welcome-brand">
+                <span>TB</span>
+                <strong>TimeBlindAI</strong>
+              </div>
+              <button className="welcome-theme-switch" type="button" onClick={() => setTheme((current) => (current === "light" ? "dark" : "light"))}>
+                <span aria-hidden="true" />
+                {theme === "light" ? "Switch to Dark Theme" : "Switch to Light Theme"}
               </button>
-              {error ? <p className="error-banner">{error}</p> : null}
-            </form>
+            </header>
+
+            <div className="welcome-layout">
+              <div className="hero-copy welcome-copy">
+                <p className="eyebrow">TimeBlindAI Study</p>
+                <h1>Plan smarter when time feels slippery.</h1>
+                <p className="lede">
+                  Create a workspace, add real tasks, run focus sessions, and let your actual completion data improve
+                  future planning.
+                </p>
+                <div className="welcome-visual-card" aria-label="Planning preview">
+                  <div className="planner-orbit">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <div className="planner-preview">
+                    <div>
+                      <span>Today</span>
+                      <strong>3 focused blocks</strong>
+                    </div>
+                    <div>
+                      <span>Prediction</span>
+                      <strong>Learning from feedback</strong>
+                    </div>
+                    <div>
+                      <span>Next</span>
+                      <strong>Start one task</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <form className="onboarding-card welcome-onboarding-card" onSubmit={handleOnboarding}>
+                <div>
+                  <p className="eyebrow">{authMode === "login" ? "Login" : "Register"}</p>
+                  <h2>{authMode === "login" ? "Welcome back" : "Start your workspace"}</h2>
+                  <p className="subtle-copy">
+                    {authMode === "login"
+                      ? "Use the email you registered with to reopen your existing workspace."
+                      : "Create a real user record in the project database."}
+                  </p>
+                </div>
+                <div className="auth-mode-tabs" role="tablist" aria-label="Login or register">
+                  <button
+                    aria-selected={authMode === "login"}
+                    className={authMode === "login" ? "active" : ""}
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("login");
+                      setError(null);
+                    }}
+                  >
+                    Login
+                  </button>
+                  <button
+                    aria-selected={authMode === "register"}
+                    className={authMode === "register" ? "active" : ""}
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("register");
+                      setError(null);
+                    }}
+                  >
+                    Register
+                  </button>
+                </div>
+                <label>
+                  Email
+                  <input name="email" type="email" required placeholder="you@example.com" />
+                </label>
+
+                {authMode === "register" ? (
+                  <>
+                    <label>
+                      Name
+                      <input name="displayName" required placeholder="Aarush" />
+                    </label>
+                    <label>
+                      Time zone
+                      <input name="timeZone" defaultValue="Asia/Kolkata" required />
+                    </label>
+                    <div className="form-grid">
+                      <label>
+                        I am mainly a
+                        <select name="participantType" defaultValue="student">
+                          <option value="student">Student</option>
+                          <option value="developer">Developer</option>
+                          <option value="working_professional">Working professional</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </label>
+                      <label>
+                        I mostly want to track
+                        <select name="primaryTaskFocus" defaultValue="study">
+                          <option value="study">Study tasks</option>
+                          <option value="coding">Coding tasks</option>
+                          <option value="assignments">Assignments</option>
+                          <option value="writing">Writing</option>
+                          <option value="daily_admin">Daily admin</option>
+                          <option value="mixed">Mixed work</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label>
+                      Reminder style
+                      <select name="preferredNudgeStyle" defaultValue="supportive">
+                        <option value="supportive">Supportive</option>
+                        <option value="direct">Direct</option>
+                        <option value="minimal">Minimal</option>
+                      </select>
+                    </label>
+                    <label className="consent-card">
+                      <input name="consentToResearch" type="checkbox" required />
+                      <span>
+                        I agree that my task timing and feedback data can be used for academic/project analysis.
+                      </span>
+                    </label>
+                  </>
+                ) : (
+                  <div className="login-helper-card">
+                    <strong>Email-only demo login</strong>
+                    <p>No password yet. If the email exists in the database, we reopen that workspace.</p>
+                  </div>
+                )}
+
+                <button type="submit" disabled={isPending}>
+                  {isPending
+                    ? authMode === "login"
+                      ? "Opening workspace..."
+                      : "Creating your space..."
+                    : authMode === "login"
+                      ? "Login"
+                      : "Register and continue"}
+                </button>
+                {authMode === "login" ? (
+                  <p className="auth-switch-copy">
+                    New here?{" "}
+                    <button type="button" onClick={() => setAuthMode("register")}>
+                      Register first
+                    </button>
+                  </p>
+                ) : (
+                  <p className="auth-switch-copy">
+                    Already registered?{" "}
+                    <button type="button" onClick={() => setAuthMode("login")}>
+                      Login instead
+                    </button>
+                  </p>
+                )}
+                {error ? <p className="error-banner">{error}</p> : null}
+              </form>
+            </div>
           </section>
         </main>
       </div>
     );
   }
-
   const pendingTasks = sortPendingTasks(tasks.filter((task) => !isCompletedTask(task)), pendingSort);
   const completedTasks = sortCompletedTasks(tasks.filter((task) => isCompletedTask(task)), completedSort);
   const highUrgencyTasks = pendingTasks.filter((task) => getTaskUrgency(task) === "high");
@@ -540,8 +819,8 @@ export function TimeblindShell() {
             <div className="panel-header">
               <div>
                 <p className="eyebrow">New Task</p>
-                <h2>Plan one task</h2>
-                <p>Estimate it, break it down, and add it to your pending queue.</p>
+                <h2>Tell us the task</h2>
+                <p>Start with a short task name. TimeBlindAI will ask only what it needs next.</p>
               </div>
               <button className="ghost-button" type="button" onClick={() => setIsTaskModalOpen(false)}>
                 Close
@@ -605,6 +884,7 @@ function AppLayout({
         />
         <main className="content-shell">{children}</main>
       </div>
+      <MobileBottomNav activePage={activePage} onNavigate={onNavigate} pendingCount={pendingCount} />
     </div>
   );
 }
@@ -671,6 +951,34 @@ function Sidebar({
   );
 }
 
+function MobileBottomNav({
+  activePage,
+  onNavigate,
+  pendingCount
+}: {
+  activePage: AppPage;
+  onNavigate: (page: AppPage) => void;
+  pendingCount: number;
+}) {
+  return (
+    <nav className="mobile-bottom-nav" aria-label="Primary mobile navigation">
+      {mobileNavItems.map((item) => (
+        <button
+          key={item.id}
+          className={activePage === item.id ? "active" : ""}
+          type="button"
+          onClick={() => onNavigate(item.id)}
+          title={item.label}
+        >
+          <span>{item.icon}</span>
+          <strong>{item.label}</strong>
+          {item.id === "tasks" && pendingCount ? <em>{pendingCount}</em> : null}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 function Header({
   activePage,
   onNavigate,
@@ -692,7 +1000,7 @@ function Header({
         <p className="eyebrow">Workspace</p>
         <h1>{formatPageTitle(activePage)}</h1>
         <div className="header-shortcuts" role="navigation" aria-label="Quick pages">
-          {(["tasks", "schedule", "review"] as AppPage[]).map((page) => (
+          {(["tasks", "schedule", "focus", "review"] as AppPage[]).map((page) => (
             <button
               key={page}
               className={activePage === page ? "active" : ""}
@@ -712,6 +1020,9 @@ function Header({
           <span>Signed in</span>
           <strong>{user.display_name}</strong>
         </div>
+        <button className="ghost-button header-settings-button" type="button" onClick={() => onNavigate("settings")}>
+          Settings
+        </button>
         <button className="ghost-button" type="button" onClick={onSignOut}>
           Sign out
         </button>
@@ -741,16 +1052,91 @@ function DashboardPage({
   schedulePlan: ScheduleGenerationResponse | null;
   user: UserDetail;
 }) {
+  const nextAction = getDashboardNextAction(pendingTasks, schedulePlan);
+
   return (
     <div className="page-stack">
-      <section className="hero-panel">
-        <div>
+      <section className="hero-panel guided-hero">
+        <div className="hero-panel-copy">
           <p className="eyebrow">Dashboard</p>
-          <h2>{user.display_name}&rsquo;s workspace</h2>
-          <p>Plan what matters, build a realistic day, and keep the next task easy to start.</p>
+          <h2>Start with one clear next move</h2>
+          <p>
+            Hi {user.display_name}. TimeBlindAI works best as a loop: plan one task, schedule the day, run a focus
+            session, then review what actually happened.
+          </p>
         </div>
-        <button type="button" onClick={onAddTask}>
-          Add task
+        <div className="hero-action-panel">
+          <span>Recommended now</span>
+          <strong>{nextAction.title}</strong>
+          <p>{nextAction.detail}</p>
+          <div className="hero-action-row">
+            {nextTask ? (
+              <Link className="task-link-button" href={`/session?taskId=${encodeURIComponent(nextTask.id)}`}>
+                Start focus
+              </Link>
+            ) : (
+              <button type="button" onClick={onAddTask}>
+                Add first task
+              </button>
+            )}
+            <button className="ghost-button" type="button" onClick={() => onNavigate("schedule")}>
+              Build schedule
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="journey-strip" aria-label="TimeBlindAI workflow">
+        <div className={pendingTasks.length ? "journey-step complete" : "journey-step active"}>
+          <span>1</span>
+          <strong>Plan</strong>
+          <p>Add a task and let the app break it down.</p>
+        </div>
+        <div className={schedulePlan?.time_blocks.length ? "journey-step complete" : "journey-step"}>
+          <span>2</span>
+          <strong>Schedule</strong>
+          <p>Fit work into a realistic time window.</p>
+        </div>
+        <div className={nextTask ? "journey-step active" : "journey-step"}>
+          <span>3</span>
+          <strong>Focus</strong>
+          <p>Start the next task and log actual time.</p>
+        </div>
+        <div className={completedTasks.length ? "journey-step complete" : "journey-step"}>
+          <span>4</span>
+          <strong>Review</strong>
+          <p>Use feedback to improve future estimates.</p>
+        </div>
+      </section>
+
+      <section className="quick-action-grid" aria-label="Quick actions">
+        <button className="action-tile" type="button" onClick={onAddTask}>
+          <span>Plan</span>
+          <strong>Add a task</strong>
+          <p>Break one messy thing into smaller steps.</p>
+        </button>
+        <button className="action-tile" type="button" onClick={() => onNavigate("schedule")}>
+          <span>Schedule</span>
+          <strong>Build today</strong>
+          <p>Turn your queue into realistic time blocks.</p>
+        </button>
+        {nextTask ? (
+          <Link className="action-tile action-tile-link" href={`/session?taskId=${encodeURIComponent(nextTask.id)}`}>
+            <span>Focus</span>
+            <strong>Start next task</strong>
+            <p>Open a timer for the task that needs attention now.</p>
+          </Link>
+        ) : (
+          <button className="action-tile" type="button" onClick={() => onNavigate("focus")}>
+            <span>Focus</span>
+            <strong>Open focus</strong>
+            <p>Use a simple timer when you are ready to begin.</p>
+          </button>
+        )}
+        <button className="action-tile" type="button" onClick={() => onNavigate("review")}>
+          <span>Review</span>
+          <strong>Learn patterns</strong>
+          <p>Compare estimates with actual time spent.</p>
         </button>
       </section>
 
@@ -762,11 +1148,11 @@ function DashboardPage({
       </section>
 
       <section className="dashboard-grid">
-        <article className="panel">
+        <article className="panel priority-panel">
           <div className="panel-header">
             <div>
-              <h2>Today preview</h2>
-              <p>{schedulePlan ? "Your latest generated time blocks." : "Generate a schedule to see your day here."}</p>
+              <h2>Today&apos;s plan</h2>
+              <p>{schedulePlan ? "Your latest generated time blocks, with start buttons when a task is ready." : "No plan yet. Generate a schedule after adding at least one task."}</p>
             </div>
             <button className="ghost-button" type="button" onClick={() => onNavigate("schedule")}>
               Schedule
@@ -775,21 +1161,35 @@ function DashboardPage({
           {schedulePlan?.time_blocks.length ? (
             <SchedulePreview onStartBlock={onStartScheduledBlock} schedulePlan={schedulePlan} />
           ) : (
-            <EmptyState text="No schedule generated yet." />
+            <GuidedEmptyState
+              actionLabel="Generate schedule"
+              onAction={() => onNavigate("schedule")}
+              text="Build a realistic day from your pending tasks."
+              title="Your schedule is empty"
+            />
           )}
         </article>
 
-        <article className="panel">
+        <article className="panel priority-panel">
           <div className="panel-header">
             <div>
               <h2>Next task</h2>
-              <p>The best next task based on urgency and what is still open.</p>
+              <p>The task to start next, based on urgency and what is still open.</p>
             </div>
             <button className="ghost-button" type="button" onClick={() => onNavigate("tasks")}>
               Tasks
             </button>
           </div>
-          {nextTask ? <TaskCard task={nextTask} showFocusLink /> : <EmptyState text="No pending tasks. Add one to begin." />}
+          {nextTask ? (
+            <TaskCard task={nextTask} showFocusLink />
+          ) : (
+            <GuidedEmptyState
+              actionLabel="Add task"
+              onAction={onAddTask}
+              text="Start with one thing you want to finish today."
+              title="No pending tasks"
+            />
+          )}
         </article>
       </section>
     </div>
@@ -1490,24 +1890,46 @@ function SettingsPage({
 }
 
 function TaskPlanSummary({ taskPlan }: { taskPlan: TaskDecompositionResponse }) {
+  const estimateDifference = taskPlan.personalized_estimate_minutes - taskPlan.base_estimate_minutes;
+  const confidence = formatPredictionConfidence(taskPlan.prediction_confidence);
+
   return (
-    <section className="panel">
-      <div className="panel-header">
-        <h2>Latest plan</h2>
-        <p>{taskPlan.guidance}</p>
+    <section className="panel plan-summary-panel">
+      <div className="panel-header plan-summary-header">
+        <div>
+          <p className="eyebrow">Latest Prediction</p>
+          <h2>{taskPlan.task_title}</h2>
+          <p>{taskPlan.guidance}</p>
+        </div>
       </div>
-      <div className="result-card">
-        <div className="result-row">
-          <span>Baseline estimate</span>
-          <strong>{formatDurationMinutes(taskPlan.base_estimate_minutes)}</strong>
-        </div>
-        <div className="result-row">
-          <span>Predicted for you</span>
+
+      <div className="prediction-card" aria-label="Task duration prediction">
+        <div className="prediction-main">
+          <span>Estimated duration</span>
           <strong>{formatDurationMinutes(taskPlan.personalized_estimate_minutes)}</strong>
+          <p>{formatEstimateDifference(estimateDifference)}</p>
         </div>
-        <div className="result-row">
-          <span>Confidence</span>
-          <strong>{taskPlan.prediction_confidence}</strong>
+        <div className="prediction-details">
+          <div>
+            <span>Starting estimate</span>
+            <strong>{formatDurationMinutes(taskPlan.base_estimate_minutes)}</strong>
+          </div>
+          <div>
+            <span>Personalization</span>
+            <strong>{taskPlan.personalization_multiplier.toFixed(2)}x</strong>
+          </div>
+          <div>
+            <span>Confidence</span>
+            <strong>{confidence.label}</strong>
+            <p>{confidence.helper}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel-header plan-steps-heading">
+        <div>
+          <h2>Suggested focus path</h2>
+          <p>Use these as starting blocks. After the session, your feedback improves future estimates.</p>
         </div>
       </div>
       <ul className="timeline-list">
@@ -1539,19 +1961,27 @@ function TaskList({ emptyText, showFocusLink = false, tasks }: { emptyText: stri
 
 function TaskCard({ showFocusLink = false, task }: { showFocusLink?: boolean; task: TaskSummary }) {
   const urgency = getTaskUrgency(task);
+  const statusClass = isCompletedTask(task)
+    ? "status-completed"
+    : task.status === "in_progress"
+      ? "status-active"
+      : "status-planned";
+
   return (
-    <li>
-      <strong>{task.title}</strong>
-      <span>{formatTaskStatus(task.status)}</span>
-      <p>
-        {task.deadline_at ? formatDate(task.deadline_at) : "No deadline yet"} | Urgency {formatUrgency(urgency)}
-      </p>
-      <p>
-        Planned {formatDurationMinutes(task.estimated_minutes)} | Actual {formatDurationMinutes(task.actual_minutes)}
-      </p>
-      <p>
-        {task.task_type} | {task.difficulty}
-        {task.quantity_value ? ` | ${task.quantity_value} unit(s)` : ""}
+    <li className="task-card">
+      <div className="task-card-header">
+        <strong>{task.title}</strong>
+        <span className={`status-chip ${statusClass}`}>{formatTaskStatus(task.status)}</span>
+      </div>
+      <div className="task-card-meta">
+        <span>{task.deadline_at ? formatDate(task.deadline_at) : "No deadline"}</span>
+        <span>Urgency {formatUrgency(urgency)}</span>
+        <span>{task.task_type}</span>
+        <span>{task.difficulty}</span>
+        {task.quantity_value ? <span>{task.quantity_value} unit(s)</span> : null}
+      </div>
+      <p className="task-card-summary">
+        Planned {formatDurationMinutes(task.estimated_minutes)}. Actual {formatDurationMinutes(task.actual_minutes)}.
       </p>
       {showFocusLink && !isCompletedTask(task) ? (
         <Link className="ghost-button task-link-button" href={`/session?taskId=${encodeURIComponent(task.id)}`}>
@@ -1671,10 +2101,53 @@ function EmptyState({ text }: { text: string }) {
   return <p className="empty-state">{text}</p>;
 }
 
+function GuidedEmptyState({
+  actionLabel,
+  onAction,
+  text,
+  title
+}: {
+  actionLabel: string;
+  onAction: () => void;
+  text: string;
+  title: string;
+}) {
+  return (
+    <div className="empty-state guided-empty-state">
+      <strong>{title}</strong>
+      <p>{text}</p>
+      <button type="button" onClick={onAction}>
+        {actionLabel}
+      </button>
+    </div>
+  );
+}
+
+function getDashboardNextAction(pendingTasks: TaskSummary[], schedulePlan: ScheduleGenerationResponse | null) {
+  if (!pendingTasks.length) {
+    return {
+      title: "Add one task",
+      detail: "Give the app a task so it can estimate effort and create a focus path."
+    };
+  }
+
+  if (!schedulePlan?.time_blocks.length) {
+    return {
+      title: "Generate today's schedule",
+      detail: "You have tasks waiting. Turn them into realistic time blocks before starting."
+    };
+  }
+
+  return {
+    title: "Start the next focus session",
+    detail: "A task is ready. Run the timer so the app can compare planned time with actual time."
+  };
+}
+
 function formatPageTitle(page: AppPage) {
   switch (page) {
     case "dashboard":
-      return "Dashboard";
+      return "Today";
     case "tasks":
       return "Tasks";
     case "schedule":
@@ -1720,6 +2193,35 @@ function formatDurationMinutes(value: number | null) {
   return `${hours}h ${minutes}m`;
 }
 
+function formatEstimateDifference(value: number) {
+  if (value === 0) {
+    return "Matches the starting estimate.";
+  }
+
+  const direction = value > 0 ? "longer" : "shorter";
+  return `${formatDurationMinutes(Math.abs(value))} ${direction} than the starting estimate.`;
+}
+
+function formatPredictionConfidence(value: string) {
+  switch (value) {
+    case "high":
+      return {
+        label: "Strong",
+        helper: "Based on several similar completed tasks."
+      };
+    case "medium":
+      return {
+        label: "Growing",
+        helper: "Based on a few relevant completed tasks."
+      };
+    default:
+      return {
+        label: "Early signal",
+        helper: "We need more completed tasks to personalize this strongly."
+      };
+  }
+}
+
 function formatDelta(estimatedMinutes: number | null, actualMinutes: number | null) {
   if (estimatedMinutes === null || actualMinutes === null) {
     return "Pending";
@@ -1758,20 +2260,81 @@ function parseOptionalNumber(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function getDefaultDeadlineValue() {
+  const date = roundToNextQuarterHour(new Date(Date.now() + 60 * 60 * 1000));
+  return formatDateTimeLocalValue(date);
+}
+
+function getTodayDateValue() {
+  return formatDateTimeLocalValue(new Date()).slice(0, 10);
+}
+
+function roundToNextQuarterHour(date: Date) {
+  const next = new Date(date);
+  const minutes = next.getMinutes();
+  const roundedMinutes = Math.ceil(minutes / 15) * 15;
+  next.setMinutes(roundedMinutes, 0, 0);
+  return next;
+}
+
+function formatDateTimeLocalValue(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
+    date.getMinutes()
+  )}`;
+}
+
+function getDatePart(value: string) {
+  return value ? value.slice(0, 10) : getTodayDateValue();
+}
+
+function getTimePart(value: string) {
+  return value && value.includes("T") ? value.slice(11, 16) : "09:00";
+}
+
+function combineDateAndTime(date: string, time: string) {
+  return `${date || getTodayDateValue()}T${time || "09:00"}`;
+}
+
+function getQuarterHourOptions() {
+  const options: string[] = [];
+  for (let hour = 0; hour < 24; hour += 1) {
+    for (const minute of [0, 15, 30, 45]) {
+      options.push(`${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`);
+    }
+  }
+  return options;
+}
+
+function formatTimeOption(value: string) {
+  const [hourText, minuteText] = value.split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${String(minute).padStart(2, "0")} ${suffix}`;
+}
+
 function getQuantityLabel(taskType: string) {
   switch (taskType) {
     case "assignment":
-      return "Problem count or units";
+      return "Parts, slides, or units (optional)";
     case "reading":
-      return "Pages";
+      return "Pages (optional)";
     case "study":
-      return "Topics or sections";
+      return "Topics or sections (optional)";
     case "writing":
-      return "Paragraphs or sections";
+      return "Sections or slides (optional)";
     case "coding":
-      return "Features or tickets";
+      return "Main changes or tickets (optional)";
+    case "meeting_prep":
+      return "Agenda items (optional)";
+    case "errand":
+      return "Stops or places (optional)";
+    case "chore":
+      return "Areas or rounds (optional)";
     case "exercise":
-      return "Target blocks";
+      return "Target blocks (optional)";
     default:
       return "Quantity (optional)";
   }
@@ -1789,10 +2352,31 @@ function getQuantityPlaceholder(taskType: string) {
       return "e.g. 4";
     case "coding":
       return "e.g. 2";
+    case "meeting_prep":
+      return "e.g. 3";
+    case "errand":
+      return "e.g. 2";
+    case "chore":
+      return "e.g. 2";
     case "exercise":
       return "e.g. 3";
     default:
       return "Optional";
+  }
+}
+
+function getNotesPlaceholder(taskType: string) {
+  switch (taskType) {
+    case "assignment":
+      return "e.g. include intro, methods, results, and conclusion slides";
+    case "errand":
+      return "e.g. shop name, address, what to carry, or call first";
+    case "coding":
+      return "e.g. files to touch, bug details, or acceptance checks";
+    case "meeting_prep":
+      return "e.g. questions to ask or points to mention";
+    default:
+      return "Anything the app should remember while planning this task";
   }
 }
 

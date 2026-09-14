@@ -4,6 +4,9 @@ export type UserDetail = {
   display_name: string;
   time_zone: string;
   preferred_nudge_style: string;
+  participant_type: string;
+  primary_task_focus: string;
+  consent_to_research: string;
   model_profile: {
     chronotype: string;
     optimal_session_minutes: number;
@@ -261,6 +264,10 @@ export async function ensureUser(payload: {
     method: "POST",
     body: JSON.stringify(payload)
   });
+}
+
+export async function getUserByEmail(email: string) {
+  return request<UserDetail>(`/api/v1/users/by-email/${encodeURIComponent(email)}`);
 }
 
 export async function listTasks(userId: string) {

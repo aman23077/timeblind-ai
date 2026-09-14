@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 
 
 export const metadata: Metadata = {
-  title: "Timeblind AI",
-  description: "Adaptive temporal support for people who experience time blindness."
+  title: "TimeBlindAI",
+  description: "Task planning, scheduling, focus sessions, and review insights for time-blind productivity."
 };
 
 

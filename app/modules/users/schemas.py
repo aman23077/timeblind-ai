@@ -23,6 +23,9 @@ class UserCreate(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=120)
     time_zone: str = "Asia/Kolkata"
     preferred_nudge_style: str = "supportive"
+    participant_type: str = "student"
+    primary_task_focus: str = "study"
+    consent_to_research: str = "false"
 
 
 class UserEnsure(BaseModel):
@@ -30,12 +33,18 @@ class UserEnsure(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=120)
     time_zone: str = "Asia/Kolkata"
     preferred_nudge_style: str = "supportive"
+    participant_type: str = "student"
+    primary_task_focus: str = "study"
+    consent_to_research: str = "false"
 
 
 class UserUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
     time_zone: str | None = None
     preferred_nudge_style: str | None = None
+    participant_type: str | None = None
+    primary_task_focus: str | None = None
+    consent_to_research: str | None = None
 
 
 class UserRead(BaseModel):
@@ -46,6 +55,9 @@ class UserRead(BaseModel):
     display_name: str
     time_zone: str
     preferred_nudge_style: str
+    participant_type: str
+    primary_task_focus: str
+    consent_to_research: str
     created_at: datetime
     updated_at: datetime
 

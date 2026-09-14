@@ -11,6 +11,9 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(120))
     time_zone: Mapped[str] = mapped_column(String(64), default="Asia/Kolkata")
     preferred_nudge_style: Mapped[str] = mapped_column(String(32), default="supportive")
+    participant_type: Mapped[str] = mapped_column(String(32), default="student")
+    primary_task_focus: Mapped[str] = mapped_column(String(64), default="study")
+    consent_to_research: Mapped[str] = mapped_column(String(8), default="false")
 
 
 class UserModelProfile(Base):

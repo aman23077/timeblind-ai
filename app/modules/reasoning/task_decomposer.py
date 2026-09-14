@@ -8,18 +8,18 @@ from app.modules.tasks.schemas import (
 
 
 BASE_MINUTES_BY_TYPE: dict[str, int] = {
-    "assignment": 90,
-    "reading": 40,
-    "study": 60,
-    "writing": 75,
-    "coding": 90,
-    "meeting_prep": 45,
-    "admin": 30,
-    "errand": 35,
-    "chore": 40,
+    "assignment": 60,
+    "reading": 35,
+    "study": 50,
+    "writing": 55,
+    "coding": 65,
+    "meeting_prep": 35,
+    "admin": 25,
+    "errand": 30,
+    "chore": 30,
     "exercise": 45,
-    "creative": 60,
-    "generic": 45,
+    "creative": 50,
+    "generic": 35,
 }
 
 DIFFICULTY_MULTIPLIER: dict[str, float] = {
@@ -29,20 +29,24 @@ DIFFICULTY_MULTIPLIER: dict[str, float] = {
 }
 
 QUANTITY_RULES: dict[str, tuple[int, int]] = {
-    "assignment": (25, 90),
+    "assignment": (15, 45),
     "reading": (2, 20),
-    "study": (20, 60),
-    "writing": (15, 75),
-    "coding": (30, 90),
+    "study": (15, 40),
+    "writing": (10, 35),
+    "coding": (20, 45),
+    "meeting_prep": (8, 25),
+    "errand": (15, 25),
+    "chore": (12, 25),
     "exercise": (10, 45),
 }
 
 READING_KEYWORDS = ("read", "chapter", "pages", "page", "book", "article", "notes")
 PROBLEM_SOLVING_KEYWORDS = ("dsa", "problem", "questions", "question", "leetcode", "exercise", "sheet")
-WRITING_KEYWORDS = ("write", "essay", "draft", "report", "summary", "statement", "blog")
-CODING_KEYWORDS = ("build", "implement", "fix", "debug", "feature", "api", "component", "code")
+WRITING_KEYWORDS = ("write", "essay", "draft", "report", "summary", "statement", "blog", "ppt", "presentation", "slide", "slides", "deck")
+CODING_KEYWORDS = ("build", "implement", "fix", "debug", "feature", "api", "component", "code", "coding", "program")
 STUDY_KEYWORDS = ("study", "revise", "learn", "review", "practice", "prepare", "dbms", "os", "cn")
 CLEANUP_KEYWORDS = ("clean", "organize", "arrange", "room", "desk", "closet")
+ERRAND_KEYWORDS = ("buy", "collect", "pickup", "pick up", "submit", "repair", "fixed", "phone fixed", "shop", "market", "bank", "office")
 ACADEMIC_READING_KEYWORDS = ("study", "revise", "review", "notes", "exam", "syllabus", "lecture", "dbms", "os", "cn")
 
 
@@ -77,8 +81,9 @@ def decompose_task(
 
 
 def _base_estimate(payload: TaskDecompositionRequest) -> int:
-    base_minutes = BASE_MINUTES_BY_TYPE.get(payload.task_type, BASE_MINUTES_BY_TYPE["generic"])
-    quantity_minutes = _quantity_estimate(payload, base_minutes)
+    estimate_type = _estimate_task_type(payload)
+    base_minutes = BASE_MINUTES_BY_TYPE.get(estimate_type, BASE_MINUTES_BY_TYPE["generic"])
+    quantity_minutes = _quantity_estimate(payload, base_minutes, estimate_type)
     minutes = quantity_minutes if quantity_minutes is not None else base_minutes
     minutes = round(minutes * DIFFICULTY_MULTIPLIER.get(payload.difficulty, 1.0))
     minutes = round(minutes * _title_complexity_multiplier(payload.title))
@@ -87,7 +92,7 @@ def _base_estimate(payload: TaskDecompositionRequest) -> int:
     return max(15, minutes)
 
 
-def _quantity_estimate(payload: TaskDecompositionRequest, fallback_minutes: int) -> int | None:
+def _quantity_estimate(payload: TaskDecompositionRequest, fallback_minutes: int, estimate_type: str) -> int | None:
     if payload.quantity_value is None:
         return None
 
@@ -97,11 +102,24 @@ def _quantity_estimate(payload: TaskDecompositionRequest, fallback_minutes: int)
             return max(25, payload.quantity_value * 3)
         return max(20, payload.quantity_value * 2)
 
-    per_unit, minimum = QUANTITY_RULES.get(payload.task_type, (None, None))
+    per_unit, minimum = QUANTITY_RULES.get(estimate_type, (None, None))
     if per_unit is None:
         return max(minimum or fallback_minutes, payload.quantity_value * max(5, fallback_minutes // 3))
 
     return max(minimum, payload.quantity_value * per_unit)
+
+
+def _estimate_task_type(payload: TaskDecompositionRequest) -> str:
+    task_pattern = _detect_task_pattern(payload)
+    if task_pattern == "problem_solving":
+        return "assignment"
+    if task_pattern in {"reading", "study", "writing", "coding", "meeting_prep", "exercise"}:
+        return task_pattern
+    if task_pattern == "cleanup":
+        return "chore"
+    if task_pattern == "errand":
+        return "errand"
+    return payload.task_type if payload.task_type != "generic" else "generic"
 
 
 def _title_complexity_multiplier(title: str) -> float:
@@ -175,12 +193,20 @@ def _build_steps(
 
 
 def _clean_task_label(title: str) -> str:
-    return " ".join(title.split()).strip() or "this task"
+    cleaned = " ".join(title.split()).strip()
+    lowered = cleaned.lower()
+    for prefix in ("do ", "finish ", "complete ", "work on ", "start "):
+        if lowered.startswith(prefix) and len(cleaned) > len(prefix):
+            cleaned = cleaned[len(prefix) :].strip()
+            break
+    return cleaned or "this task"
 
 
 def _detect_task_pattern(payload: TaskDecompositionRequest) -> str:
     lowered = payload.title.lower()
 
+    if payload.task_type == "errand" or any(keyword in lowered for keyword in ERRAND_KEYWORDS):
+        return "errand"
     if payload.task_type == "writing" or any(keyword in lowered for keyword in WRITING_KEYWORDS):
         return "writing"
     if payload.task_type == "coding" or any(keyword in lowered for keyword in CODING_KEYWORDS):
@@ -352,6 +378,28 @@ def _build_pattern_steps(
             ),
         ]
 
+    if task_pattern == "errand":
+        return [
+            DecomposedTaskStep(
+                title=f"Confirm the place, requirement, and travel plan for {task_label}",
+                suggested_minutes=first_block,
+                order=1,
+                rationale="A quick check prevents wasted travel or missing details before you leave.",
+            ),
+            DecomposedTaskStep(
+                title=f"Travel and complete the main errand for {task_label}",
+                suggested_minutes=main_block,
+                order=2,
+                rationale="The main block should include the real-world movement and the actual service or pickup.",
+            ),
+            DecomposedTaskStep(
+                title=f"Save the receipt, follow-up, or reminder after {task_label}",
+                suggested_minutes=close_block,
+                order=3,
+                rationale="Capturing the next action keeps the errand from staying open in your head.",
+            ),
+        ]
+
     if task_pattern == "meeting_prep":
         return [
             DecomposedTaskStep(
@@ -477,6 +525,22 @@ def _build_overflow_steps(
             ),
         ]
 
+    if task_pattern == "errand":
+        return [
+            DecomposedTaskStep(
+                title=f"Confirm what is needed before leaving for {task_label}",
+                suggested_minutes=setup_minutes,
+                order=1,
+                rationale="When time is short, checking requirements first prevents a wasted trip.",
+            ),
+            DecomposedTaskStep(
+                title=f"Complete the highest-priority part of {task_label}",
+                suggested_minutes=main_minutes,
+                order=2,
+                rationale="Use the remaining time on the one part that actually closes the errand.",
+            ),
+        ]
+
     return [
         DecomposedTaskStep(
             title=f"Set up and choose the smallest useful target for {task_label}",
@@ -506,6 +570,8 @@ def _quantity_label(payload: TaskDecompositionRequest) -> str:
         return f"{payload.quantity_value} section(s)"
     if task_pattern == "coding":
         return f"{payload.quantity_value} main change(s)"
+    if task_pattern == "errand":
+        return f"{payload.quantity_value} stop(s)"
     return f"{payload.quantity_value} unit(s)"
 
 

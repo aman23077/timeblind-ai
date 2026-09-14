@@ -73,6 +73,12 @@ def _ensure_sqlite_columns() -> None:
     time_block_columns = (
         {column["name"] for column in inspector.get_columns("time_blocks")} if inspector.has_table("time_blocks") else set()
     )
+    user_columns = {column["name"] for column in inspector.get_columns("users")} if inspector.has_table("users") else set()
+    required_user_columns = {
+        "participant_type": "ALTER TABLE users ADD COLUMN participant_type VARCHAR(32) DEFAULT 'student'",
+        "primary_task_focus": "ALTER TABLE users ADD COLUMN primary_task_focus VARCHAR(64) DEFAULT 'study'",
+        "consent_to_research": "ALTER TABLE users ADD COLUMN consent_to_research VARCHAR(8) DEFAULT 'false'",
+    }
     required_columns = {
         "difficulty": "ALTER TABLE tasks ADD COLUMN difficulty VARCHAR(16) DEFAULT 'medium'",
         "quantity_value": "ALTER TABLE tasks ADD COLUMN quantity_value INTEGER",
@@ -99,6 +105,9 @@ def _ensure_sqlite_columns() -> None:
     }
 
     with engine.begin() as connection:
+        for column_name, statement in required_user_columns.items():
+            if column_name not in user_columns:
+                connection.execute(text(statement))
         for column_name, statement in required_columns.items():
             if column_name not in task_columns:
                 connection.execute(text(statement))
