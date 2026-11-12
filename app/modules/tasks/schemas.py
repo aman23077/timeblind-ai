@@ -24,6 +24,7 @@ TaskDifficulty = Literal["easy", "medium", "hard"]
 class TaskDecompositionRequest(BaseModel):
     user_id: str | None = None
     title: str = Field(..., min_length=1, max_length=180)
+    description: str = Field(default="", max_length=2000)
     deadline_at: datetime | None = None
     estimated_minutes: int | None = Field(default=None, ge=5, le=1440)
     task_type: TaskType = "generic"
@@ -52,6 +53,15 @@ class TaskDecompositionResponse(BaseModel):
     guidance: str
     total_suggested_minutes: int
     steps: list[DecomposedTaskStep]
+    generation_source: Literal["rules", "llm", "rules_fallback"] = "rules"
+    generation_warning: str | None = None
+    model_name: str | None = None
+    prompt_version: str | None = None
+    estimate_lower_minutes: int | None = None
+    estimate_upper_minutes: int | None = None
+    assumptions: list[str] = Field(default_factory=list)
+    estimate_explanation: str | None = None
+    history_example_count: int = 0
 
 
 class TaskCreate(BaseModel):

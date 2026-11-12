@@ -1,7 +1,7 @@
 # TimeBlindAI Baseline Model Report
 
 ## Dataset
-- Exported task rows: 46
+- Exported task rows: 47
 - Supervised rows with estimate and actual time: 33
 - Train rows: 26
 - Test rows: 7

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db, save_and_refresh
 from app.core.http import not_found
-from app.modules.reasoning.task_decomposer import decompose_task
+from app.modules.reasoning.generative import estimate_task
 from app.modules.sessions.models import SessionRecord
 from app.modules.tasks.models import Task, TaskDependency, TaskStep
 from app.modules.tasks.schemas import (
@@ -94,7 +94,7 @@ def create_task_dependency(
 @router.post("/decompose", response_model=TaskDecompositionResponse)
 def decompose_task_route(payload: TaskDecompositionRequest, db: Session = Depends(get_db)) -> TaskDecompositionResponse:
     multiplier, confidence = _prediction_profile(db, payload.user_id, payload.task_type)
-    return decompose_task(payload, personalization_multiplier=multiplier, prediction_confidence=confidence)
+    return estimate_task(db, payload, multiplier, confidence)
 
 
 def _task_detail(db: Session, task: Task) -> TaskDetail:

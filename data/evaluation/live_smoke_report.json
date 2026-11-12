@@ -1,0 +1,9 @@
+{
+  "model": "gpt-4.1-mini-2025-04-14",
+  "isolated_database": true,
+  "estimate_http_status": 503,
+  "success": false,
+  "provider_http_status": 429,
+  "provider_error_code": "credit_balance_exhausted",
+  "evaluation_batch_run": false
+}

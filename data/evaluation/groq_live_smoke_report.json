@@ -1,0 +1,76 @@
+{
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "isolated_database": true,
+  "estimate_http_status": 200,
+  "estimate": {
+    "task_title": "Read 10 textbook pages and take brief notes",
+    "urgency": null,
+    "base_estimate_minutes": 35,
+    "personalized_estimate_minutes": 35,
+    "prediction_confidence": "low",
+    "personalization_multiplier": 1.0,
+    "available_minutes": null,
+    "fit_status": null,
+    "overflow_minutes": null,
+    "guidance": "This task has no deadline yet, so the estimate is for planning and later scheduling.",
+    "total_suggested_minutes": 35,
+    "steps": [
+      {
+        "title": "Read the 10 pages",
+        "suggested_minutes": 20,
+        "order": 1,
+        "rationale": "At roughly 2 minutes per page for a familiar chapter, reading all pages should take about 20 minutes."
+      },
+      {
+        "title": "Write brief bullet notes (1\u20112 per page)",
+        "suggested_minutes": 10,
+        "order": 2,
+        "rationale": "Allocating about 1 minute per page allows for concise note\u2011taking without excessive detail."
+      },
+      {
+        "title": "Quickly review and tidy up notes",
+        "suggested_minutes": 5,
+        "order": 3,
+        "rationale": "A short review ensures notes are legible and captures any missed points."
+      }
+    ],
+    "generation_source": "llm",
+    "generation_warning": null,
+    "model_name": "openai/gpt-oss-120b",
+    "prompt_version": "timeblind-v1",
+    "estimate_lower_minutes": 30,
+    "estimate_upper_minutes": 45,
+    "assumptions": [
+      "Each textbook page takes about 2 minutes to read given moderate familiarity.",
+      "Writing one to two brief bullet notes per page takes roughly 1 minute per page.",
+      "No major interruptions will occur during the reading session.",
+      "The pages are of average length and density for a typical textbook.",
+      "The reader has basic note\u2011taking tools ready (paper or digital).",
+      "A quick final review of the notes adds a small overhead."
+    ],
+    "estimate_explanation": "Reading 10 pages of a moderately familiar chapter is expected to take about 2 minutes per page, totaling 20 minutes. Adding brief bullet notes (\u22481 minute per page) adds another 10 minutes. A brief review of the notes ensures they are captured correctly and adds roughly 5 minutes. This yields a total of 35 minutes, with a plausible range of 30\u201345 minutes to accommodate slight variations in reading speed or note detail.",
+    "history_example_count": 0
+  },
+  "schedule_http_status": 200,
+  "schedule": {
+    "generation_source": "llm",
+    "planning_explanation": "The reading task must be completed before the summary can be written due to the specified dependency. Both tasks have equal priority and together take exactly 60 minutes, fitting comfortably within the 4\u2011hour window. Scheduling the reading first ensures the summary can start immediately after, minimizing context switches and meeting the dependency requirement.",
+    "blocks": [
+      {
+        "title": "Read chapter",
+        "kind": "task",
+        "start_at": "2026-10-09T03:30:00Z",
+        "end_at": "2026-10-09T04:00:00Z"
+      },
+      {
+        "title": "Write summary of chapter",
+        "kind": "task",
+        "start_at": "2026-10-09T04:00:00Z",
+        "end_at": "2026-10-09T04:30:00Z"
+      }
+    ],
+    "deferred_count": 0
+  },
+  "success": true
+}

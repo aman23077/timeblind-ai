@@ -39,6 +39,14 @@ export type EventPlanResponse = {
 };
 
 export type TaskDecompositionResponse = {
+  generation_source?: "rules" | "llm" | "rules_fallback";
+  generation_warning?: string | null;
+  model_name?: string | null;
+  estimate_lower_minutes?: number | null;
+  estimate_upper_minutes?: number | null;
+  assumptions?: string[];
+  estimate_explanation?: string | null;
+  history_example_count?: number;
   task_title: string;
   urgency: string;
   base_estimate_minutes: number;
@@ -127,6 +135,9 @@ export type SessionRecord = {
 };
 
 export type ScheduleGenerationResponse = {
+  generation_source?: string;
+  generation_warning?: string | null;
+  planning_explanation?: string | null;
   id: string;
   user_id: string;
   plan_date: string;

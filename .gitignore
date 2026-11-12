@@ -23,6 +23,7 @@ env/
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+*.tsbuildinfo
 frontend/.env.local
 frontend/.env*.local
 npm-debug.log*
@@ -31,6 +32,7 @@ yarn-error.log*
 
 # Archives and generated bundles
 *.zip
+docs/report_qa/
 
 # OS / editor
 .DS_Store

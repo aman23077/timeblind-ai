@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timezone
 
 from app.modules.tasks.schemas import (
     DecomposedTaskStep,
@@ -135,8 +135,8 @@ def _title_complexity_multiplier(title: str) -> float:
 def _compute_urgency(payload: TaskDecompositionRequest) -> str:
     if payload.deadline_at is None:
         return None
-    current_time = payload.current_time or (payload.deadline_at - timedelta(days=1))
-    remaining_hours = (payload.deadline_at - current_time).total_seconds() / 3600
+    current_time = payload.current_time or datetime.now(timezone.utc)
+    remaining_hours = (_utc(payload.deadline_at) - _utc(current_time)).total_seconds() / 3600
     if remaining_hours <= 12:
         return "high"
     if remaining_hours <= 48:
@@ -147,8 +147,12 @@ def _compute_urgency(payload: TaskDecompositionRequest) -> str:
 def _available_minutes(payload: TaskDecompositionRequest) -> int:
     if payload.deadline_at is None:
         return None
-    current_time = payload.current_time or (payload.deadline_at - timedelta(days=1))
-    return max(0, round((payload.deadline_at - current_time).total_seconds() / 60))
+    current_time = payload.current_time or datetime.now(timezone.utc)
+    return max(0, int((_utc(payload.deadline_at) - _utc(current_time)).total_seconds() / 60))
+
+
+def _utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
 
 
 def _fit_analysis(

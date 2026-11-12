@@ -1,6 +1,7 @@
 from datetime import date, datetime, time
 
 from pydantic import BaseModel, ConfigDict, Field
+from pydantic import model_validator
 
 
 class ScheduleCreate(BaseModel):
@@ -81,6 +82,14 @@ class ScheduleGenerateRequest(BaseModel):
     window_end: time
     break_minutes: int = Field(10, ge=0, le=120)
 
+    @model_validator(mode="after")
+    def valid_window(self):
+        if self.window_start.tzinfo or self.window_end.tzinfo:
+            raise ValueError("Use local clock times without UTC offsets")
+        if self.window_end <= self.window_start:
+            raise ValueError("Window end must be after start on the same day")
+        return self
+
 
 class UnscheduledTask(BaseModel):
     task_id: str
@@ -91,6 +100,11 @@ class UnscheduledTask(BaseModel):
 
 class ScheduleGenerationResponse(ScheduleDetail):
     unscheduled_tasks: list[UnscheduledTask]
+    generation_source: str = "rules"
+    generation_warning: str | None = None
+    model_name: str | None = None
+    prompt_version: str | None = None
+    planning_explanation: str | None = None
 
 
 class TimeBlockStartRequest(BaseModel):

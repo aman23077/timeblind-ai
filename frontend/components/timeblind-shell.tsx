@@ -233,6 +233,7 @@ export function TimeblindShell() {
           const plan = await decomposeTask({
             user_id: user.id,
             title: taskForm.title,
+            description: taskNotes,
             deadline_at: taskForm.deadlineAt ? new Date(taskForm.deadlineAt).toISOString() : null,
             task_type: taskForm.taskType,
             difficulty: taskForm.difficulty,
@@ -1336,7 +1337,7 @@ function SchedulePage({
         </article>
 
         <article className="panel">
-          <div className="panel-header">
+          <div className="panel-header schedule-preview-header">
             <h2>Generated preview</h2>
             <p>Review the latest plan, then start directly from a scheduled block.</p>
           </div>
@@ -1864,6 +1865,9 @@ function TaskPlanSummary({ taskPlan }: { taskPlan: TaskDecompositionResponse }) 
           <p className="eyebrow">Latest Prediction</p>
           <h2>{taskPlan.task_title}</h2>
           <p>{taskPlan.guidance}</p>
+          <p>{taskPlan.generation_source === "llm" ? "AI estimate" : "Standard estimate"}</p>
+          {taskPlan.generation_warning && <p role="status">{taskPlan.generation_warning}</p>}
+          {taskPlan.estimate_explanation && <p>{taskPlan.estimate_explanation}</p>}
         </div>
       </div>
 
@@ -1871,21 +1875,24 @@ function TaskPlanSummary({ taskPlan }: { taskPlan: TaskDecompositionResponse }) 
         <div className="prediction-main">
           <span>Estimated duration</span>
           <strong>{formatDurationMinutes(taskPlan.personalized_estimate_minutes)}</strong>
-          <p>{formatEstimateDifference(estimateDifference)}</p>
+          {taskPlan.estimate_lower_minutes != null && taskPlan.estimate_upper_minutes != null && (
+            <p>Planning range: {formatDurationMinutes(taskPlan.estimate_lower_minutes)} to {formatDurationMinutes(taskPlan.estimate_upper_minutes)}. This range is approximate.</p>
+          )}
+          <p>{taskPlan.generation_source === "llm" ? "Estimated for the full task scope." : formatEstimateDifference(estimateDifference)}</p>
         </div>
         <div className="prediction-details">
           <div>
-            <span>Starting estimate</span>
-            <strong>{formatDurationMinutes(taskPlan.base_estimate_minutes)}</strong>
+            <span>{taskPlan.generation_source === "llm" ? "History used" : "Starting estimate"}</span>
+            <strong>{taskPlan.generation_source === "llm" ? `${taskPlan.history_example_count ?? 0} past tasks` : formatDurationMinutes(taskPlan.base_estimate_minutes)}</strong>
           </div>
           <div>
             <span>Personalization</span>
-            <strong>{taskPlan.personalization_multiplier.toFixed(2)}x</strong>
+            <strong>{taskPlan.generation_source === "llm" ? ((taskPlan.history_example_count ?? 0) > 0 ? "From past tasks" : "General estimate") : `${taskPlan.personalization_multiplier.toFixed(2)}x`}</strong>
           </div>
           <div>
             <span>Confidence</span>
             <strong>{confidence.label}</strong>
-            <p>{confidence.helper}</p>
+            <p>{taskPlan.generation_source === "llm" ? "Approximate. Record completed tasks to give future estimates more context." : confidence.helper}</p>
           </div>
         </div>
       </div>
@@ -1896,6 +1903,7 @@ function TaskPlanSummary({ taskPlan }: { taskPlan: TaskDecompositionResponse }) 
           <p>Use these as starting blocks. After the session, your feedback improves future estimates.</p>
         </div>
       </div>
+      {!!taskPlan.assumptions?.length && <p>Assumptions: {taskPlan.assumptions.join(" ")}</p>}
       <ul className="timeline-list">
         {taskPlan.steps.map((step) => (
           <li key={`${step.order}-${step.title}`}>
@@ -1975,14 +1983,25 @@ function SchedulePreview({
 
   return (
     <div className="result-card">
+      <p>{schedulePlan.generation_source === "llm" || schedulePlan.generated_by === "llm_validated" ? "AI-assisted schedule" : "Standard schedule"}</p>
+      {schedulePlan.planning_explanation && (
+        <>
+          <p className="subtle-copy">AI suggested order</p>
+          <p>{schedulePlan.planning_explanation}</p>
+          <p className="subtle-copy">The time blocks below show what fits your selected hours, deadlines, and events.</p>
+        </>
+      )}
+      {schedulePlan.generation_warning && <p role="status">{schedulePlan.generation_warning}</p>}
       <div className="result-row">
         <span>Scheduled blocks</span>
         <strong>{schedulePlan.time_blocks.length}</strong>
       </div>
       <div className="result-row">
-        <span>Deferred tasks</span>
+        <span>Tasks not scheduled</span>
         <strong>{unscheduledTasks.length}</strong>
       </div>
+      <p className="subtle-copy">Scheduled time blocks for {formatPlanDate(schedulePlan.plan_date)}</p>
+      {!schedulePlan.time_blocks.length && <p>No tasks were scheduled. Review the reasons below or choose more available hours.</p>}
       <ul className="timeline-list">
         {schedulePlan.time_blocks.map((block) => (
           <li key={block.id}>
@@ -2026,7 +2045,8 @@ function SchedulePreview({
       </ul>
       {unscheduledTasks.length ? (
         <>
-          <p className="subtle-copy">Didn&apos;t fit</p>
+          <p className="subtle-copy">Not scheduled in this plan</p>
+          <p className="subtle-copy">These tasks remain in your task list. Review the reason for each one, then adjust your tasks or planning hours.</p>
           <ul className="compact-list">
             {unscheduledTasks.map((task) => (
               <li key={task.task_id}>
@@ -2138,6 +2158,15 @@ function formatDate(value: string) {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function formatPlanDate(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC"
+  }).format(new Date(`${value}T00:00:00Z`));
 }
 
 function formatTime(value: string) {

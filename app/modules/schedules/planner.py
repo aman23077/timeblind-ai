@@ -1,11 +1,14 @@
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.modules.schedules.models import TimeBlock
-from app.modules.tasks.models import Task
+from app.modules.tasks.models import Task, TaskDependency
+from app.modules.events.models import Event, EventPrepItem
 from app.modules.sessions.models import SessionRecord
+from app.modules.users.models import User
 
 
 LEAKAGE_SIGNALS = {
@@ -25,30 +28,50 @@ def build_schedule_blocks(
     start_at: datetime,
     window_end: datetime,
     break_minutes: int,
+    ordered_task_ids: list[str] | None = None,
 ) -> tuple[list[TimeBlock], list[dict[str, str | int]]]:
     current_start = _normalize_datetime(start_at)
+    planning_start = current_start
     normalized_end = _normalize_datetime(window_end)
     remaining_tasks = sorted(tasks, key=task_sort_key)
+    if ordered_task_ids is not None:
+        rank = {task_id: i for i, task_id in enumerate(ordered_task_ids)}
+        remaining_tasks.sort(key=lambda task: rank.get(task.id, len(rank)))
+    requirements = dependency_requirements(db, user_id, tasks)
+    completed_ids = set(db.scalars(select(Task.id).where(
+        Task.user_id == user_id, Task.status == "completed"
+    )).all())
+    busy = event_windows(db, user_id, current_start, normalized_end)
     blocks: list[TimeBlock] = []
     unscheduled: list[dict[str, str | int]] = []
     focused_since_break = 0
-    breaks_used = 0
 
     while remaining_tasks and current_start < normalized_end:
-        available_minutes = duration_minutes(current_start, normalized_end)
+        overlapping = next((end for start, end in busy if start <= current_start < end), None)
+        if overlapping:
+            current_start = overlapping
+            continue
+        free_end = min([start for start, _ in busy if start > current_start] + [normalized_end])
+        available_minutes = duration_minutes(current_start, free_end)
         fitting_tasks = []
         risk_profiles: dict[str, tuple[str, int, str]] = {}
         for task in remaining_tasks:
+            if not requirements.get(task.id, set()).issubset(completed_ids):
+                continue
             risk_level, risk_buffer_minutes, risk_reason = task_risk_profile(db, user_id, task)
             effective_minutes = max(15, task.estimated_minutes or 30) + risk_buffer_minutes
-            if effective_minutes <= available_minutes:
+            deadline = _normalize_datetime(task.deadline_at) if task.deadline_at else normalized_end
+            if effective_minutes <= available_minutes and current_start + timedelta(minutes=effective_minutes) <= deadline:
                 fitting_tasks.append(task)
                 risk_profiles[task.id] = (risk_level, risk_buffer_minutes, risk_reason)
 
         if not fitting_tasks:
+            if free_end < normalized_end:
+                current_start = free_end
+                continue
             break
 
-        task = min(fitting_tasks, key=task_sort_key)
+        task = fitting_tasks[0]
         remaining_tasks.remove(task)
         estimated_minutes = max(15, task.estimated_minutes or 30)
         risk_level, risk_buffer_minutes, risk_reason = risk_profiles[task.id]
@@ -56,9 +79,9 @@ def build_schedule_blocks(
 
         should_insert_break = (
             break_minutes > 0
-            and breaks_used < 2
-            and focused_since_break >= 170
-            and duration_minutes(current_start + timedelta(minutes=break_minutes), normalized_end) >= effective_minutes
+            and focused_since_break >= 50
+            and duration_minutes(current_start + timedelta(minutes=break_minutes), free_end) >= effective_minutes
+            and (task.deadline_at is None or current_start + timedelta(minutes=break_minutes + effective_minutes) <= _normalize_datetime(task.deadline_at))
         )
         if should_insert_break:
             break_end = current_start + timedelta(minutes=break_minutes)
@@ -81,7 +104,6 @@ def build_schedule_blocks(
             )
             current_start = break_end
             focused_since_break = 0
-            breaks_used += 1
 
         task_end = current_start + timedelta(minutes=effective_minutes)
         if task_end > normalized_end:
@@ -114,6 +136,7 @@ def build_schedule_blocks(
             )
         )
         current_start = task_end
+        completed_ids.add(task.id)
         focused_since_break += effective_minutes
 
     for task in remaining_tasks:
@@ -122,11 +145,88 @@ def build_schedule_blocks(
                 "task_id": task.id,
                 "title": task.title,
                 "estimated_minutes": max(15, task.estimated_minutes or 30),
-                "reason": "Not enough room in the selected time window after prioritizing urgent, shorter, and lower-risk tasks.",
+                "reason": deferral_reason(db, user_id, task, planning_start, normalized_end,
+                                          busy, blocks, requirements, completed_ids),
             }
         )
 
     return blocks, unscheduled
+
+
+def deferral_reason(db: Session, user_id: str, task: Task, start_at: datetime, end_at: datetime,
+                    busy: list[tuple[datetime, datetime]], blocks: list[TimeBlock],
+                    requirements: dict[str, set[str]], completed_ids: set[str]) -> str:
+    """Explain the final plan using its actual free time and hard constraints."""
+    deadline = _normalize_datetime(task.deadline_at) if task.deadline_at else end_at
+    if deadline <= start_at:
+        return ("The deadline is before this planning window. Update or remove the deadline "
+                "if you still want to do this task, then generate again.")
+    prerequisites = requirements.get(task.id, set())
+    if not prerequisites.issubset(completed_ids):
+        return ("A prerequisite task is unfinished or could not be scheduled. "
+                "Complete or schedule the prerequisite first.")
+    earliest_start = max([start_at] + [block.end_at for block in blocks if block.task_id in prerequisites])
+    cutoff = min(end_at, deadline)
+    _, buffer, _ = task_risk_profile(db, user_id, task)
+    required = max(15, task.estimated_minutes or 30) + buffer
+    reservations = sorted(busy + [(block.start_at, block.end_at) for block in blocks])
+    cursor = earliest_start
+    gaps = []
+    for left, right in reservations:
+        if right <= cursor or left >= cutoff:
+            continue
+        if left > cursor:
+            gaps.append(duration_minutes(cursor, min(left, cutoff)))
+        cursor = max(cursor, right)
+    if cursor < cutoff:
+        gaps.append(duration_minutes(cursor, cutoff))
+    total, largest = sum(gaps), max(gaps, default=0)
+    need = f"Needs {required} uninterrupted minutes, including a {buffer}-minute protective buffer."
+    if largest < required and total >= required:
+        return (f"{need} There are {total} free minutes, but the longest gap is {largest} minutes. "
+                "This planner does not split tasks across gaps. Split it into smaller tasks or choose a longer uninterrupted window.")
+    if total < required:
+        limit = "before its deadline" if deadline < end_at else "in this planning window"
+        return (f"{need} Only {total} minutes remain free {limit}. "
+                "Choose more available hours, revise the deadline if appropriate, or split it into smaller tasks.")
+    return (f"{need} The current task order did not place it in the remaining gaps. "
+            "Try another planning window or break the task into smaller tasks.")
+
+
+def dependency_requirements(db: Session, user_id: str, tasks: list[Task]) -> dict[str, set[str]]:
+    ids = [task.id for task in tasks]
+    if not ids:
+        return {}
+    result: dict[str, set[str]] = {}
+    for dependency in db.scalars(select(TaskDependency).where(TaskDependency.task_id.in_(ids))).all():
+        # A foreign or missing prerequisite cannot authorize scheduling the dependent task.
+        result.setdefault(dependency.task_id, set()).add(dependency.depends_on_task_id)
+    return result
+
+
+def event_windows(db: Session, user_id: str, start_at: datetime, end_at: datetime) -> list[tuple[datetime, datetime]]:
+    events = db.scalars(select(Event).where(Event.user_id == user_id, Event.start_at < end_at)).all()
+    user = db.get(User, user_id)
+    zone = ZoneInfo(user.time_zone) if user else timezone.utc
+    windows = []
+    for event in events:
+        if event.end_at is None and _normalize_datetime(event.start_at).astimezone(zone).date() < start_at.astimezone(zone).date():
+            continue
+        prep = db.scalars(select(EventPrepItem).where(EventPrepItem.event_id == event.id)).all()
+        reserved_start = _normalize_datetime(event.start_at) - timedelta(minutes=(
+            event.commute_minutes + event.get_ready_minutes + event.departure_buffer_minutes + sum(item.minutes for item in prep)
+        ))
+        # No event end supplied: reserve the rest of this planning window conservatively.
+        reserved_end = _normalize_datetime(event.end_at) if event.end_at else end_at
+        if reserved_end > start_at and reserved_start < end_at:
+            windows.append((max(start_at, reserved_start), min(end_at, reserved_end)))
+    merged: list[tuple[datetime, datetime]] = []
+    for start, end in sorted(windows):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
+        else:
+            merged.append((start, end))
+    return merged
 
 
 def task_sort_key(task: Task):

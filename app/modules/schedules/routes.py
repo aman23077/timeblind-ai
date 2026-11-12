@@ -1,13 +1,15 @@
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db, save_and_refresh
+from app.core.database import get_db, save_and_refresh, new_id
 from app.core.http import not_found
 from app.modules.schedules.models import Schedule, TimeBlock
-from app.modules.schedules.planner import build_schedule_blocks
+from app.modules.schedules.planner import build_schedule_blocks, dependency_requirements
+from app.modules.reasoning.generative import order_tasks
 from app.modules.schedules.schemas import (
     ScheduleGenerateRequest,
     ScheduleGenerationResponse,
@@ -24,6 +26,7 @@ from app.modules.schedules.schemas import (
 )
 from app.modules.sessions.models import SessionRecord
 from app.modules.tasks.models import Task
+from app.modules.users.models import User
 
 
 router = APIRouter()
@@ -50,40 +53,58 @@ def list_schedules(
 
 @router.post("/generate", response_model=ScheduleGenerationResponse)
 def generate_schedule(payload: ScheduleGenerateRequest, db: Session = Depends(get_db)) -> ScheduleGenerationResponse:
+    user = db.get(User, payload.user_id)
+    if user is None:
+        raise not_found("User", payload.user_id)
+    try:
+        local_zone = ZoneInfo(user.time_zone)
+    except ZoneInfoNotFoundError:
+        raise HTTPException(422, "User timezone must be a valid IANA timezone") from None
+    start_at = datetime.combine(payload.plan_date, payload.window_start, local_zone).astimezone(timezone.utc)
+    window_end = datetime.combine(payload.plan_date, payload.window_end, local_zone).astimezone(timezone.utc)
     schedule = db.scalar(
         select(Schedule).where(Schedule.user_id == payload.user_id, Schedule.plan_date == payload.plan_date)
     )
+    if schedule and db.scalar(select(TimeBlock.id).where(
+        TimeBlock.schedule_id == schedule.id, TimeBlock.status.in_(["active", "completed"])
+    ).limit(1)):
+        raise HTTPException(409, "This schedule has started. Use recovery to adjust the remaining blocks.")
     if schedule is None:
         schedule = Schedule(
+            id=new_id(),
             user_id=payload.user_id,
             plan_date=payload.plan_date,
             status="draft",
             generated_by="timeblind_scheduler",
         )
-        schedule = save_and_refresh(db, schedule)
-    else:
-        schedule.generated_by = "timeblind_scheduler"
-        schedule.status = "draft"
-        schedule = save_and_refresh(db, schedule)
-
-    db.execute(delete(TimeBlock).where(TimeBlock.schedule_id == schedule.id))
-    db.commit()
 
     tasks = db.scalars(
-        select(Task).where(Task.user_id == payload.user_id, Task.status != "completed").order_by(Task.created_at.asc())
+        select(Task).where(Task.user_id == payload.user_id, Task.status.in_(["pending", "in_progress"])).order_by(Task.created_at.asc())
     ).all()
-    window_end = _combine_local(payload.plan_date, payload.window_end)
+    requirements = dependency_requirements(db, payload.user_id, tasks)
+    order, metadata = order_tasks(tasks, start_at, window_end, [
+        {"task_id": task_id, "depends_on_task_id": prerequisite}
+        for task_id, prerequisites in requirements.items() for prerequisite in sorted(prerequisites)
+    ])
     blocks, unscheduled_raw = build_schedule_blocks(
         db=db,
         schedule_id=schedule.id,
         user_id=payload.user_id,
         tasks=tasks,
-        start_at=_combine_local(payload.plan_date, payload.window_start),
+        start_at=start_at,
         window_end=window_end,
         break_minutes=payload.break_minutes,
+        ordered_task_ids=order,
     )
-
-    persisted_blocks = [save_and_refresh(db, block) for block in blocks]
+    # Only replace the previous draft after generation and validation have succeeded.
+    schedule.generated_by = "llm_validated" if metadata["generation_source"] == "llm" else "timeblind_scheduler"
+    schedule.status = "draft"
+    db.execute(delete(TimeBlock).where(TimeBlock.schedule_id == schedule.id))
+    db.add(schedule)
+    db.add_all(blocks)
+    db.commit()
+    db.refresh(schedule)
+    persisted_blocks = blocks
     unscheduled = [UnscheduledTask(**item) for item in unscheduled_raw]
 
     return ScheduleGenerationResponse.model_validate(
@@ -91,6 +112,7 @@ def generate_schedule(payload: ScheduleGenerateRequest, db: Session = Depends(ge
             **schedule.__dict__,
             "time_blocks": persisted_blocks,
             "unscheduled_tasks": unscheduled,
+            **metadata,
         }
     )
 
@@ -254,7 +276,10 @@ def recover_schedule_after_block(
         window_end=latest_window_end,
         break_minutes=payload.suggested_break_minutes,
     )
+    schedule.generated_by = "timeblind_scheduler"
+    db.add(schedule)
     persisted_blocks = [save_and_refresh(db, block) for block in rebuilt_blocks]
+    db.commit()
     refreshed_blocks = db.scalars(
         select(TimeBlock).where(TimeBlock.schedule_id == schedule.id).order_by(TimeBlock.start_at.asc())
     ).all()
@@ -269,10 +294,6 @@ def recover_schedule_after_block(
         rescheduled=True,
         deferred_tasks=deferred_tasks,
     )
-
-
-def _combine_local(plan_date, plan_time):
-    return datetime.combine(plan_date, plan_time).replace(tzinfo=timezone.utc)
 
 
 def _minutes_delta(minutes: int):

@@ -4,6 +4,14 @@ TimeBlindAI is a full-stack productivity assistant for people who struggle with 
 
 The project has a FastAPI backend and a Next.js frontend.
 
+## Generative AI planning
+
+Task duration estimation, decomposition, and schedule ordering can now use Groq or OpenAI through the backend. The example configuration selects Groq's free-tier `openai/gpt-oss-120b` model. Start with [the setup, dataset audit, model comparison, and Render activation guide](docs/llm-integration.md). AI is disabled by default; copy `.env.example` to `.env`, configure a private `GROQ_API_KEY`, and set `LLM_ENABLED=true` to enable it. The UI identifies AI plans and rule-based fallback.
+
+Run the offline audit with `python -m scripts.evaluate_generative`; use `--live` after configuring credentials to evaluate the selected provider. Live calls consume its quota and may incur charges on a paid account. Groq evaluation requests are spaced by one minute by default. Public deployment also needs authenticated ownership checks and request limits, which are not included in this initial integration.
+
+The saved Groq key passed live estimate and schedule checks. Duration prediction remains experimental: the six-task pilot without starting estimates produced only three valid AI responses and did not beat the rules. The guide records both successful integration checks and the poor accuracy/reliability results. The default evaluator matches the task form by omitting stored estimates from model inputs; `--estimate-input stored` reproduces the initial seeded comparison.
+
 ## Features
 
 - User onboarding with local profile creation
