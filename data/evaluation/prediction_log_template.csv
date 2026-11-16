@@ -1,0 +1,1 @@
+task_id,user_id,scope,task_type,difficulty,predicted_at,completed_at,user_minutes,rules_minutes,llm_status,llm_minutes,llm_lower,llm_upper,actual_minutes

@@ -2852,3 +2852,12 @@ button:disabled {
     min-height: 50px;
   }
 }
+.activity-panel {
+  margin-bottom: 1.5rem;
+}
+
+.activity-command {
+  display: block;
+  overflow-wrap: anywhere;
+  margin: 1rem 0;
+}

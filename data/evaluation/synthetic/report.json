@@ -1,0 +1,502 @@
+{
+  "dataset_id": "btp-synthetic-v1",
+  "evidence": "Synthetic simulation only. No human outcomes measured.",
+  "split_counts": {
+    "train": 180,
+    "validation": 60,
+    "test": 60
+  },
+  "duration_test": {
+    "rules": {
+      "n": 60,
+      "mae_minutes": 40.05,
+      "median_absolute_error_minutes": 25.0,
+      "within_15_minutes_pct": 28.33
+    },
+    "train_calibrated_rules": {
+      "n": 60,
+      "mae_minutes": 25.81,
+      "median_absolute_error_minutes": 17.3,
+      "within_15_minutes_pct": 46.67
+    }
+  },
+  "external_models": {},
+  "external_models_note": "No external model calls made. Missing predictions are not scored as model successes.",
+  "policy_metrics": {
+    "cases": 23,
+    "exact_label_accuracy": 1,
+    "precision": 1.0,
+    "recall": 1.0,
+    "false_positive_cases": 0,
+    "false_negative_cases": 0
+  },
+  "policy_cases": [
+    {
+      "id": "steady_focus",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    },
+    {
+      "id": "two_legitimate_switches",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true,
+        "switch_count": true
+      },
+      "passed": true
+    },
+    {
+      "id": "three_switches_below_threshold",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true,
+        "switch_count": true
+      },
+      "passed": true
+    },
+    {
+      "id": "four_switches_at_threshold",
+      "expected": "context_switches",
+      "actual": "context_switches",
+      "checks": {
+        "label": true,
+        "at_most_one": true,
+        "switch_count": true,
+        "no_repeat_within_cooldown": true,
+        "cooldown_duration": true
+      },
+      "passed": true
+    },
+    {
+      "id": "nine_sustained_switches",
+      "expected": "context_switches",
+      "actual": "context_switches",
+      "checks": {
+        "label": true,
+        "at_most_one": true,
+        "switch_count": true,
+        "no_repeat_within_cooldown": true,
+        "cooldown_duration": true
+      },
+      "passed": true
+    },
+    {
+      "id": "brief_alt_tab",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true,
+        "switch_count": true
+      },
+      "passed": true
+    },
+    {
+      "id": "idle_118_seconds",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    },
+    {
+      "id": "idle_120_seconds",
+      "expected": "idle",
+      "actual": "idle",
+      "checks": {
+        "label": true,
+        "at_most_one": true,
+        "no_repeat_within_cooldown": true,
+        "cooldown_duration": true
+      },
+      "passed": true
+    },
+    {
+      "id": "idle_180_seconds",
+      "expected": "idle",
+      "actual": "idle",
+      "checks": {
+        "label": true,
+        "at_most_one": true,
+        "no_repeat_within_cooldown": true,
+        "cooldown_duration": true
+      },
+      "passed": true
+    },
+    {
+      "id": "unknown_observation_gap",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    },
+    {
+      "id": "low_coverage_switches",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    },
+    {
+      "id": "stale_monitor",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    },
+    {
+      "id": "disabled_monitor",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    },
+    {
+      "id": "slippage_4_minutes",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    },
+    {
+      "id": "slippage_5_minutes",
+      "expected": "slippage",
+      "actual": "slippage",
+      "checks": {
+        "label": true,
+        "at_most_one": true,
+        "no_repeat_within_cooldown": true,
+        "cooldown_duration": true
+      },
+      "passed": true
+    },
+    {
+      "id": "slippage_below_fraction",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    },
+    {
+      "id": "slippage_priority_over_switches",
+      "expected": "slippage",
+      "actual": "slippage",
+      "checks": {
+        "label": true,
+        "at_most_one": true,
+        "no_repeat_within_cooldown": true,
+        "cooldown_duration": true
+      },
+      "passed": true
+    },
+    {
+      "id": "upcoming_5_minutes",
+      "expected": "upcoming",
+      "actual": "upcoming",
+      "checks": {
+        "label": true,
+        "at_most_one": true,
+        "no_repeat_within_cooldown": true,
+        "cooldown_duration": true
+      },
+      "passed": true
+    },
+    {
+      "id": "upcoming_6_minutes",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    },
+    {
+      "id": "late_4_minutes",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    },
+    {
+      "id": "late_5_minutes",
+      "expected": "late_start",
+      "actual": "late_start",
+      "checks": {
+        "label": true,
+        "at_most_one": true,
+        "no_repeat_within_cooldown": true,
+        "cooldown_duration": true
+      },
+      "passed": true
+    },
+    {
+      "id": "cooldown_suppresses_repeat",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    },
+    {
+      "id": "minimal_cooldown_suppresses_repeat",
+      "expected": "none",
+      "actual": "none",
+      "checks": {
+        "label": true,
+        "at_most_one": true
+      },
+      "passed": true
+    }
+  ],
+  "scheduler_cases": [
+    {
+      "id": "normal",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 3,
+      "deferred": 0,
+      "planned_task_minutes": 75,
+      "static_past_starts": 1,
+      "adaptive_past_starts": 0
+    },
+    {
+      "id": "over_capacity",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 2,
+      "deferred": 1,
+      "planned_task_minutes": 45,
+      "static_past_starts": 1,
+      "adaptive_past_starts": 0
+    },
+    {
+      "id": "expired_window",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 0,
+      "deferred": 2,
+      "planned_task_minutes": 0,
+      "static_past_starts": 0,
+      "adaptive_past_starts": 0
+    },
+    {
+      "id": "all_too_large",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 0,
+      "deferred": 2,
+      "planned_task_minutes": 0,
+      "static_past_starts": 1,
+      "adaptive_past_starts": 0
+    },
+    {
+      "id": "event_gap",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "event_conflicts": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 3,
+      "deferred": 0,
+      "planned_task_minutes": 75,
+      "static_past_starts": 1,
+      "adaptive_past_starts": 0
+    },
+    {
+      "id": "dependency",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "dependency_order": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 3,
+      "deferred": 0,
+      "planned_task_minutes": 75,
+      "static_past_starts": 1,
+      "adaptive_past_starts": 0
+    },
+    {
+      "id": "completed_task",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "completed_excluded": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 2,
+      "deferred": 0,
+      "planned_task_minutes": 55,
+      "static_past_starts": 1,
+      "adaptive_past_starts": 0
+    },
+    {
+      "id": "deadline",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 3,
+      "deferred": 0,
+      "planned_task_minutes": 75,
+      "static_past_starts": 1,
+      "adaptive_past_starts": 0
+    },
+    {
+      "id": "impossible_deadline",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 2,
+      "deferred": 1,
+      "planned_task_minutes": 55,
+      "static_past_starts": 1,
+      "adaptive_past_starts": 0
+    },
+    {
+      "id": "active_overrun",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "active_preserved": true,
+        "remaining_forecast_reserved": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 2,
+      "deferred": 0,
+      "planned_task_minutes": 45,
+      "static_past_starts": 1,
+      "adaptive_past_starts": 0
+    },
+    {
+      "id": "remaining_fills_window",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "active_preserved": true,
+        "remaining_forecast_reserved": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 0,
+      "deferred": 1,
+      "planned_task_minutes": 0,
+      "static_past_starts": 1,
+      "adaptive_past_starts": 0
+    },
+    {
+      "id": "breaks",
+      "checks": {
+        "within_remaining_window": true,
+        "no_overlap": true,
+        "every_pending_scheduled_or_deferred": true,
+        "deadlines": true,
+        "nonempty_when_feasible": true,
+        "unchanged_input_stable": true
+      },
+      "passed": true,
+      "scheduled": 4,
+      "deferred": 0,
+      "planned_task_minutes": 120,
+      "static_past_starts": 1,
+      "adaptive_past_starts": 0
+    }
+  ],
+  "checks_passed": 146,
+  "checks_total": 146,
+  "all_cases_passed": true
+}

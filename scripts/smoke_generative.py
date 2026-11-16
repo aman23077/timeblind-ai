@@ -10,6 +10,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi.testclient import TestClient
+from app.core.auth import get_current_user
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -36,6 +37,7 @@ def main():
     try:
         with Session(engine, expire_on_commit=False) as db:
             app.dependency_overrides[get_db] = lambda: db
+            app.dependency_overrides[get_current_user] = lambda: db.get(User, "smoke-user")
             db.add(User(id="smoke-user", email="smoke@example.com", display_name="Test", time_zone="Asia/Kolkata"))
             db.commit()
             # Deliberately omit TestClient's lifespan to avoid initializing the real database.

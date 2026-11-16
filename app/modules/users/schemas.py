@@ -64,3 +64,4 @@ class UserRead(BaseModel):
 
 class UserDetail(UserRead):
     model_profile: UserModelProfileRead
+    is_admin: bool = False

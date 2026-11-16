@@ -1,0 +1,2 @@
+task_id,depends_on_task_id,dependency_kind,id,created_at,updated_at,scenario_id,expected_policy,data_source
+0476f5bc-a68f-5e56-85c7-9cfa2e3f27db,89f60895-ce62-55b9-8d7a-41e08f51ee7d,requires,52d978ed-5a09-5421-9453-0ba5eaeea992,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,dependency,not_applicable,synthetic

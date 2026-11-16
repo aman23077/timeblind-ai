@@ -40,6 +40,9 @@ def get_db():
 
 
 def initialize_database() -> None:
+    import app.modules.users.datasets  # noqa: F401
+    import app.core.auth  # noqa: F401
+    import app.modules.behaviour.activity  # noqa: F401
     import app.modules.behaviour.models  # noqa: F401
     import app.modules.context.models  # noqa: F401
     import app.modules.events.models  # noqa: F401

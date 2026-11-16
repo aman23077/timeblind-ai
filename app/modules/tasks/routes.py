@@ -1,3 +1,5 @@
+from app.modules.users.models import User
+from app.core.auth import get_current_user
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -33,10 +35,11 @@ def create_task(payload: TaskCreate, db: Session = Depends(get_db)) -> TaskRead:
 
 @router.get("", response_model=list[TaskRead])
 def list_tasks(
+    user: User = Depends(get_current_user),
     user_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[TaskRead]:
-    query = select(Task).order_by(Task.created_at.desc())
+    query = select(Task).where(Task.user_id == user.id).order_by(Task.created_at.desc())
     if user_id:
         query = query.where(Task.user_id == user_id)
     tasks = db.scalars(query).all()
@@ -92,7 +95,8 @@ def create_task_dependency(
 
 
 @router.post("/decompose", response_model=TaskDecompositionResponse)
-def decompose_task_route(payload: TaskDecompositionRequest, db: Session = Depends(get_db)) -> TaskDecompositionResponse:
+def decompose_task_route(payload: TaskDecompositionRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> TaskDecompositionResponse:
+    payload.user_id = user.id
     multiplier, confidence = _prediction_profile(db, payload.user_id, payload.task_type)
     return estimate_task(db, payload, multiplier, confidence)
 

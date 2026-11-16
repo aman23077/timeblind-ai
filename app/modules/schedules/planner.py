@@ -29,6 +29,8 @@ def build_schedule_blocks(
     window_end: datetime,
     break_minutes: int,
     ordered_task_ids: list[str] | None = None,
+    reserved_windows: list[tuple[datetime, datetime]] | None = None,
+    assumed_completed_ids: set[str] | None = None,
 ) -> tuple[list[TimeBlock], list[dict[str, str | int]]]:
     current_start = _normalize_datetime(start_at)
     planning_start = current_start
@@ -41,7 +43,9 @@ def build_schedule_blocks(
     completed_ids = set(db.scalars(select(Task.id).where(
         Task.user_id == user_id, Task.status == "completed"
     )).all())
+    completed_ids.update(assumed_completed_ids or set())
     busy = event_windows(db, user_id, current_start, normalized_end)
+    busy = merge_windows(busy + (reserved_windows or []))
     blocks: list[TimeBlock] = []
     unscheduled: list[dict[str, str | int]] = []
     focused_since_break = 0
@@ -220,6 +224,10 @@ def event_windows(db: Session, user_id: str, start_at: datetime, end_at: datetim
         reserved_end = _normalize_datetime(event.end_at) if event.end_at else end_at
         if reserved_end > start_at and reserved_start < end_at:
             windows.append((max(start_at, reserved_start), min(end_at, reserved_end)))
+    return merge_windows(windows)
+
+
+def merge_windows(windows: list[tuple[datetime, datetime]]) -> list[tuple[datetime, datetime]]:
     merged: list[tuple[datetime, datetime]] = []
     for start, end in sorted(windows):
         if merged and start <= merged[-1][1]:

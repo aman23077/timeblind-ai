@@ -1,5 +1,7 @@
+from app.modules.users.models import User
+from app.core.auth import get_current_user
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, save_and_refresh
@@ -35,12 +37,13 @@ def create_session(payload: SessionCreate, db: Session = Depends(get_db)) -> Ses
 
 @router.get("", response_model=list[SessionRead])
 def list_sessions(
+    user: User = Depends(get_current_user),
     user_id: str | None = Query(default=None),
     task_id: str | None = Query(default=None),
     time_block_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[SessionRead]:
-    query = select(SessionRecord).order_by(SessionRecord.started_at.desc())
+    query = select(SessionRecord).where(SessionRecord.user_id == user.id).order_by(SessionRecord.started_at.desc())
     if user_id:
         query = query.where(SessionRecord.user_id == user_id)
     if task_id:
@@ -70,6 +73,9 @@ def end_session(
     session_record.difficulty_feedback = payload.difficulty_feedback
     session_record.feedback_reasons = ",".join(payload.feedback_reasons)
     session_record.feedback_notes = payload.feedback_notes
+    from app.modules.behaviour.activity import ActivityMonitor
+
+    db.execute(update(ActivityMonitor).where(ActivityMonitor.session_id == session_id).values(enabled=False))
     session_record = save_and_refresh(db, session_record)
 
     if session_record.time_block_id:
@@ -79,7 +85,7 @@ def end_session(
             if session_record.status == "completed":
                 block.status = "completed"
             elif session_record.status == "cancelled":
-                block.status = "planned"
+                block.status = "cancelled"
             scheduled_end = block.end_at
             block.overrun_minutes = max(
                 0,

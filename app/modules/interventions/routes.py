@@ -1,3 +1,5 @@
+from app.modules.users.models import User
+from app.core.auth import get_current_user
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,10 +26,11 @@ def create_reminder(payload: ReminderCreate, db: Session = Depends(get_db)) -> R
 
 @router.get("/reminders", response_model=list[ReminderRead])
 def list_reminders(
+    user: User = Depends(get_current_user),
     user_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[ReminderRead]:
-    query = select(Reminder).order_by(Reminder.trigger_at.asc())
+    query = select(Reminder).where(Reminder.user_id == user.id).order_by(Reminder.trigger_at.asc())
     if user_id:
         query = query.where(Reminder.user_id == user_id)
     reminders = db.scalars(query).all()
@@ -43,10 +46,11 @@ def create_intervention(payload: InterventionCreate, db: Session = Depends(get_d
 
 @router.get("", response_model=list[InterventionRead])
 def list_interventions(
+    user: User = Depends(get_current_user),
     user_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[InterventionRead]:
-    query = select(Intervention).order_by(Intervention.trigger_at.asc())
+    query = select(Intervention).where(Intervention.user_id == user.id).order_by(Intervention.trigger_at.asc())
     if user_id:
         query = query.where(Intervention.user_id == user_id)
     interventions = db.scalars(query).all()

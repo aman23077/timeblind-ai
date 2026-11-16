@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -31,3 +31,13 @@ class Intervention(Base):
     rationale: Mapped[str] = mapped_column(Text, default="")
     trigger_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     status: Mapped[str] = mapped_column(String(32), default="pending")
+
+
+class PolicyState(Base):
+    __tablename__ = "policy_states"
+
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), unique=True)
+    next_evaluation_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    next_nudge_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    snoozed_until: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    snapshot: Mapped[dict] = mapped_column(JSON, default=dict)

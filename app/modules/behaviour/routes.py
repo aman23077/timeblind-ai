@@ -1,3 +1,5 @@
+from app.modules.users.models import User
+from app.core.auth import get_current_user
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -22,10 +24,11 @@ def create_behaviour_event(
 
 @router.get("/events", response_model=list[BehaviourEventRead])
 def list_behaviour_events(
+    user: User = Depends(get_current_user),
     user_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[BehaviourEventRead]:
-    query = select(BehaviourEvent).order_by(BehaviourEvent.occurred_at.desc())
+    query = select(BehaviourEvent).where(BehaviourEvent.user_id == user.id).order_by(BehaviourEvent.occurred_at.desc())
     if user_id:
         query = query.where(BehaviourEvent.user_id == user_id)
     events = db.scalars(query).all()

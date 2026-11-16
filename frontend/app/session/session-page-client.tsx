@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { AdaptiveAssistant } from "../../components/adaptive-assistant";
+import { useAuth } from "../../lib/use-auth";
+import { SessionActivity } from "../../components/session-activity";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
@@ -16,7 +19,6 @@ import {
 } from "../../lib/api";
 import type { ScheduleGenerationResponse, ScheduleRecoveryResponse, SessionRecord, TaskDetail, TaskSummary, UserDetail } from "../../lib/api";
 
-const SESSION_KEY = "timeblind-user";
 const THEME_KEY = "timeblind-theme";
 const LONGER_REASONS = [
   "Harder than expected",
@@ -46,14 +48,14 @@ export function SessionPageClient() {
   const taskId = searchParams.get("taskId");
   const timeBlockId = searchParams.get("timeBlockId");
 
-  const [user, setUser] = useState<UserDetail | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [nextPendingTask, setNextPendingTask] = useState<TaskSummary | null>(null);
   const [timeBlock, setTimeBlock] = useState<ScheduleGenerationResponse["time_blocks"][number] | null>(null);
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [activeSession, setActiveSession] = useState<SessionRecord | null>(null);
   const [seconds, setSeconds] = useState(0);
-  const [useManualDuration, setUseManualDuration] = useState(true);
+  const [useManualDuration, setUseManualDuration] = useState(false);
   const [manualHours, setManualHours] = useState(1);
   const [manualMinutes, setManualMinutes] = useState(0);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
@@ -70,18 +72,6 @@ export function SessionPageClient() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(SESSION_KEY);
-    if (!stored) {
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(stored) as UserDetail;
-      setUser(parsed);
-    } catch {
-      window.localStorage.removeItem(SESSION_KEY);
-    }
-
     const storedTheme = window.localStorage.getItem(THEME_KEY);
     if (storedTheme === "light" || storedTheme === "dark") {
       setTheme(storedTheme);
@@ -357,6 +347,8 @@ export function SessionPageClient() {
     !activeSession && Boolean(latestCompletedSession) && (task?.status === "completed" || (task?.actual_minutes ?? 0) > 0);
   const completionTone = latestCompletedSession ? getCompletionTone(latestCompletedSession, task) : null;
 
+  if (authLoading) return <main className="content-shell"><p role="status">Checking your login...</p></main>;
+
   if (!user) {
     return (
       <div className="app-shell session-app-shell" data-theme={theme}>
@@ -416,6 +408,11 @@ export function SessionPageClient() {
         </section>
 
       {error ? <p className="error-banner">{error}</p> : null}
+      <AdaptiveAssistant sessionId={activeSession?.id} />
+
+      {activeSession || latestCompletedSession ? (
+        <SessionActivity key={(activeSession ?? latestCompletedSession)!.id} session={(activeSession ?? latestCompletedSession)!} userId={user.id} />
+      ) : null}
 
       {shouldShowCompletionState && latestCompletedSession && completionTone ? (
         <CompletionState

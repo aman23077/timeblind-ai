@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -37,3 +37,28 @@ class TimeBlock(Base):
     buffer_before_minutes: Mapped[int] = mapped_column(Integer, default=0)
     buffer_after_minutes: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(32), default="planned")
+
+
+class AdaptivePlan(Base):
+    __tablename__ = "adaptive_plans"
+
+    schedule_id: Mapped[str] = mapped_column(ForeignKey("schedules.id"), unique=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), index=True)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    break_minutes: Mapped[int] = mapped_column(Integer, default=10)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    fingerprint: Mapped[str] = mapped_column(String(64), default="")
+    last_replanned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    reason: Mapped[str] = mapped_column(String(500), default="Initial plan")
+    deferred_tasks: Mapped[list] = mapped_column(JSON, default=list)
+
+
+class PlanRevision(Base):
+    __tablename__ = "plan_revisions"
+
+    schedule_id: Mapped[str] = mapped_column(ForeignKey("schedules.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str] = mapped_column(String(500))
+    changes: Mapped[list] = mapped_column(JSON, default=list)

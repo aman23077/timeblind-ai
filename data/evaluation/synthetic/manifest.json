@@ -1,0 +1,14 @@
+{
+  "dataset_id": "btp-synthetic-v1",
+  "seed": 23077,
+  "source": "synthetic",
+  "account_email": "timeblind-btp-test@example.com",
+  "account_id": "c9ab358f-f887-5c1d-8457-b90ec725c6e5",
+  "files_sha256": {
+    "tasks.csv": "5f63e7c8a199b9c71c92ba68998b2346de766264f1f1f41573f2a9054a06075b",
+    "model_inputs.csv": "2e6b9609679ac60ff6f9d5f41d45ace43806de03522c759445be0ccd537f5715",
+    "scenarios.json": "afa2e632381732e426188bd9612266c7b4a68a74fc8f87bdf4cef02e4a788460"
+  },
+  "simulator": "Independent workload, participant speed, lognormal noise and interruptions. Constants are assumptions.",
+  "split": "Grouped by simulated participant, 180 train / 60 validation / 60 test. No real participants."
+}

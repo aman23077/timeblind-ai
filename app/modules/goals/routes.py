@@ -1,3 +1,5 @@
+from app.modules.users.models import User
+from app.core.auth import get_current_user
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, Query
@@ -20,10 +22,11 @@ def create_goal(payload: GoalCreate, db: Session = Depends(get_db)) -> GoalRead:
 
 @router.get("", response_model=list[GoalRead])
 def list_goals(
+    user: User = Depends(get_current_user),
     user_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[GoalRead]:
-    query = select(Goal).order_by(Goal.created_at.desc())
+    query = select(Goal).where(Goal.user_id == user.id).order_by(Goal.created_at.desc())
     if user_id:
         query = query.where(Goal.user_id == user_id)
     goals = db.scalars(query).all()

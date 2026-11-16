@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { AdaptiveAssistant } from "./adaptive-assistant";
+import { AuthForm } from "./auth-form";
+import { useAuth } from "../lib/use-auth";
 import { useEffect, useState, useTransition } from "react";
 import type { FormEvent, ReactNode } from "react";
 
@@ -10,8 +13,7 @@ import {
   createEvent,
   createTask,
   decomposeTask,
-  ensureUser,
-  getUserByEmail,
+  logoutUser,
   generateSchedule,
   getInsights,
   listEvents,
@@ -28,7 +30,6 @@ import type {
   UserDetail
 } from "../lib/api";
 
-const SESSION_KEY = "timeblind-user";
 const THEME_KEY = "timeblind-theme";
 
 const defaultTaskForm = {
@@ -75,7 +76,7 @@ const navItems: Array<{ id: AppPage; label: string; icon: string }> = [
 const mobileNavItems = navItems.filter((item) => item.id !== "settings");
 
 export function TimeblindShell() {
-  const [user, setUser] = useState<UserDetail | null>(null);
+  const { user, setUser, loading: authLoading } = useAuth();
   const [tasks, setTasks] = useState<TaskSummary[]>([]);
   const [events, setEvents] = useState<Array<{ id: string; title: string; start_at: string; location: string }>>([]);
   const [taskForm, setTaskForm] = useState(defaultTaskForm);
@@ -97,18 +98,6 @@ export function TimeblindShell() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(SESSION_KEY);
-    if (!stored) {
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(stored) as UserDetail;
-      setUser(parsed);
-    } catch {
-      window.localStorage.removeItem(SESSION_KEY);
-    }
-
     const storedTheme = window.localStorage.getItem(THEME_KEY);
     if (storedTheme === "light" || storedTheme === "dark") {
       setTheme(storedTheme);
@@ -129,6 +118,25 @@ export function TimeblindShell() {
     });
   }, [reviewAnchorDate, reviewPeriod, user]);
 
+  useEffect(() => {
+    if (!user) return;
+    let disposed = false;
+    async function refreshPlan() {
+      try {
+        const response = await fetch("/api/v1/schedules?user_id=" + user!.id, { cache: "no-store" });
+        if (!response.ok) return;
+        const schedules: Array<{ id: string; plan_date: string }> = await response.json();
+        const selected = schedules.find((item) => item.plan_date === scheduleForm.planDate);
+        if (!selected) return;
+        const detail = await fetch("/api/v1/schedules/" + selected.id, { cache: "no-store" });
+        if (detail.ok && !disposed) setSchedulePlan(await detail.json());
+      } catch { /* The next policy tick retries a disconnected refresh. */ }
+    }
+    void refreshPlan();
+    window.addEventListener("timeblind-plan-updated", refreshPlan);
+    return () => { disposed = true; window.removeEventListener("timeblind-plan-updated", refreshPlan); };
+  }, [user, scheduleForm.planDate]);
+
   async function loadDashboard(userId: string) {
     try {
       const [taskItems, eventItems, insightItems] = await Promise.all([
@@ -141,67 +149,6 @@ export function TimeblindShell() {
       setInsights(insightItems);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load dashboard.");
-    }
-  }
-
-  async function handleOnboarding(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (isPending) {
-      return;
-    }
-
-    setError(null);
-    const formData = new FormData(event.currentTarget);
-    const email = String(formData.get("email") ?? "").trim();
-    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-    const authIntent = submitter?.value === "register" ? "register" : "login";
-
-    if (authIntent === "login") {
-      if (!email) {
-        setError("Enter your registered email to continue.");
-        return;
-      }
-
-      try {
-        const nextUser = await getUserByEmail(email);
-        window.localStorage.setItem(SESSION_KEY, JSON.stringify(nextUser));
-        setUser(nextUser);
-        setActivePage("dashboard");
-        await loadDashboard(nextUser.id);
-      } catch {
-        setError("No workspace found for this email. Register first, then use Login next time.");
-      }
-      return;
-    }
-
-    const payload = {
-      email,
-      display_name: String(formData.get("displayName") ?? "").trim(),
-      time_zone: String(formData.get("timeZone") ?? "Asia/Kolkata"),
-      preferred_nudge_style: String(formData.get("preferredNudgeStyle") ?? "supportive"),
-      participant_type: String(formData.get("participantType") ?? "student"),
-      primary_task_focus: String(formData.get("primaryTaskFocus") ?? "study"),
-      consent_to_research: formData.get("consentToResearch") === "on" ? "true" : "false"
-    };
-
-    if (!payload.display_name) {
-      setError("Enter your name to register.");
-      return;
-    }
-
-    if (payload.consent_to_research !== "true") {
-      setError("Please accept the consent checkbox to continue.");
-      return;
-    }
-
-    try {
-      const nextUser = await ensureUser(payload);
-      window.localStorage.setItem(SESSION_KEY, JSON.stringify(nextUser));
-      setUser(nextUser);
-      setActivePage("dashboard");
-      await loadDashboard(nextUser.id);
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Could not start session.");
     }
   }
 
@@ -386,8 +333,13 @@ export function TimeblindShell() {
     });
   }
 
-  function signOut() {
-    window.localStorage.removeItem(SESSION_KEY);
+  async function signOut() {
+    try {
+      await logoutUser();
+    } catch {
+      setError("Could not sign out. Check the connection and try again.");
+      return;
+    }
     setUser(null);
     setTaskPlan(null);
     setEventPlan(null);
@@ -561,6 +513,8 @@ export function TimeblindShell() {
     );
   }
 
+  if (authLoading) return <main className="content-shell"><p role="status">Checking your login...</p></main>;
+
   if (!user) {
     return (
       <div className="app-shell session-app-shell" data-theme={theme}>
@@ -608,82 +562,11 @@ export function TimeblindShell() {
                 </div>
               </div>
 
-              <form className="onboarding-card welcome-onboarding-card" onSubmit={handleOnboarding}>
-                <div>
-                  <p className="eyebrow">Login or Register</p>
-                  <h2>Start your workspace</h2>
-                  <p className="subtle-copy">Login with an existing email, or register below if this is your first time.</p>
-                </div>
-                <label>
-                  Email
-                  <input name="email" type="email" required placeholder="you@example.com" />
-                </label>
-
-                <div className="auth-action-card">
-                  <div className="login-helper-card">
-                    <strong>Email-only demo login</strong>
-                    <p>No password yet. If the email exists in the database, we reopen that workspace.</p>
-                  </div>
-                  <button name="authIntent" type="submit" value="login" disabled={isPending}>
-                    {isPending ? "Opening workspace..." : "Login"}
-                  </button>
-                </div>
-
-                <div className="register-fields-card">
-                  <div>
-                    <strong>New user?</strong>
-                    <p>Fill these once so the database has your study profile.</p>
-                  </div>
-                  <label>
-                    Name
-                    <input name="displayName" placeholder="Aarush" />
-                  </label>
-                  <label>
-                    Time zone
-                    <input name="timeZone" defaultValue="Asia/Kolkata" />
-                  </label>
-                  <div className="form-grid">
-                    <label>
-                      I am mainly a
-                      <select name="participantType" defaultValue="student">
-                        <option value="student">Student</option>
-                        <option value="developer">Developer</option>
-                        <option value="working_professional">Working professional</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </label>
-                    <label>
-                      I mostly want to track
-                      <select name="primaryTaskFocus" defaultValue="study">
-                        <option value="study">Study tasks</option>
-                        <option value="coding">Coding tasks</option>
-                        <option value="assignments">Assignments</option>
-                        <option value="writing">Writing</option>
-                        <option value="daily_admin">Daily admin</option>
-                        <option value="mixed">Mixed work</option>
-                      </select>
-                    </label>
-                  </div>
-                  <label>
-                    Reminder style
-                    <select name="preferredNudgeStyle" defaultValue="supportive">
-                      <option value="supportive">Supportive</option>
-                      <option value="direct">Direct</option>
-                      <option value="minimal">Minimal</option>
-                    </select>
-                  </label>
-                  <label className="consent-card">
-                    <input name="consentToResearch" type="checkbox" />
-                    <span>
-                      I agree that my task timing and feedback data can be used for academic/project analysis.
-                    </span>
-                  </label>
-                  <button name="authIntent" type="submit" value="register" disabled={isPending}>
-                    {isPending ? "Creating your space..." : "Register and continue"}
-                  </button>
-                </div>
-                {error ? <p className="error-banner">{error}</p> : null}
-              </form>
+              <AuthForm onAuthenticated={(profile) => {
+                setUser(profile);
+                setActivePage("dashboard");
+                setError(null);
+              }} />
             </div>
           </section>
         </main>
@@ -711,6 +594,8 @@ export function TimeblindShell() {
       user={user}
     >
       {error ? <p className="error-banner">{error}</p> : null}
+      <AdaptiveAssistant />
+      {activePage === "settings" && <Link href="/admin">Administration</Link>}
 
       {activePage === "dashboard" ? (
         <DashboardPage
@@ -984,6 +869,7 @@ function Header({
         <div className="profile-badge">
           <span>Signed in</span>
           <strong>{user.display_name}</strong>
+          {user.is_admin && <Link href="/admin" className="ghost-button task-link-button">Administration</Link>}
         </div>
         <button className="ghost-button header-settings-button" type="button" onClick={() => onNavigate("settings")}>
           Settings
@@ -1980,13 +1866,28 @@ function SchedulePreview({
   schedulePlan: ScheduleGenerationResponse;
 }) {
   const unscheduledTasks = schedulePlan.unscheduled_tasks ?? [];
+  const [replanning, setReplanning] = useState(false);
+  const [replanError, setReplanError] = useState("");
 
   return (
     <div className="result-card">
-      <p>{schedulePlan.generation_source === "llm" || schedulePlan.generated_by === "llm_validated" ? "AI-assisted schedule" : "Standard schedule"}</p>
+      <button disabled={replanning} onClick={async () => {
+        setReplanning(true);
+        setReplanError("");
+        try {
+          const response = await fetch(`/api/v1/schedules/${schedulePlan.id}/replan`, {
+            method: "POST", headers: { "X-TimeBlind-Client": "web" }
+          });
+          if (!response.ok) throw new Error("Could not replan. Refresh and try again.");
+          window.dispatchEvent(new Event("timeblind-plan-updated"));
+        } catch (failure) { setReplanError((failure as Error).message); }
+        finally { setReplanning(false); }
+      }}>{replanning ? "Adjusting schedule…" : "Replan remaining time"}</button>
+      {replanError && <p role="alert">{replanError}</p>}
+      <p>{schedulePlan.generation_source === "llm" || schedulePlan.generated_by === "llm_validated" ? "AI-assisted schedule" : schedulePlan.generated_by === "adaptive_rules" ? "Adaptive schedule" : "Standard schedule"}</p>
       {schedulePlan.planning_explanation && (
         <>
-          <p className="subtle-copy">AI suggested order</p>
+          <p className="subtle-copy">{schedulePlan.generated_by === "adaptive_rules" ? "Latest adjustment" : "AI suggested order"}</p>
           <p>{schedulePlan.planning_explanation}</p>
           <p className="subtle-copy">The time blocks below show what fits your selected hours, deadlines, and events.</p>
         </>

@@ -1,4 +1,5 @@
 export type UserDetail = {
+  is_admin: boolean;
   id: string;
   email: string;
   display_name: string;
@@ -247,38 +248,81 @@ export type InsightsResponse = {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000";
 
+export type ActivitySummary = {
+  enabled: boolean;
+  connected: boolean;
+  idle_threshold_seconds: number;
+  active_seconds: number;
+  idle_seconds: number;
+  unobserved_seconds: number;
+  context_switches: number;
+  apps: Array<{ name: string; seconds: number }>;
+};
+
+export const companionCommand = `py -m scripts.windows_companion --server '${API_BASE_URL.replace(/'/g, "''")}'`;
+
+export function getActivity(sessionId: string, userId: string) {
+  return request<ActivitySummary>(`/api/v1/activity/sessions/${sessionId}?user_id=${encodeURIComponent(userId)}`);
+}
+
+export function enableActivity(sessionId: string, userId: string) {
+  return request<{ token: string }>(`/api/v1/activity/sessions/${sessionId}/enable?user_id=${encodeURIComponent(userId)}`, { method: "POST" });
+}
+
+export function disableActivity(sessionId: string, userId: string) {
+  return request<{ enabled: boolean }>(`/api/v1/activity/sessions/${sessionId}/disable?user_id=${encodeURIComponent(userId)}`, { method: "POST" });
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(path, {
     ...options,
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
+      "X-TimeBlind-Client": "web",
       ...(options?.headers ?? {})
     },
     cache: "no-store"
   });
 
   if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Request failed: ${response.status}`);
+    if (response.status === 401 && !path.startsWith("/api/v1/auth/")) {
+      window.dispatchEvent(new Event("timeblind-auth-expired"));
+    }
+    const body = await response.json().catch(() => null);
+    const detail = body?.detail;
+    const message = Array.isArray(detail) ? detail.map((item: { msg: string }) => item.msg).join(". ") : detail;
+    throw new Error(typeof message === "string" ? message : `Request failed (${response.status})`);
   }
 
   return response.json() as Promise<T>;
 }
 
-export async function ensureUser(payload: {
-  email: string;
-  display_name: string;
-  time_zone: string;
-  preferred_nudge_style: string;
-}) {
-  return request<UserDetail>("/api/v1/users/ensure", {
+export function registerUser(payload: Record<string, unknown>) {
+  return request<UserDetail>("/api/v1/auth/register", {
     method: "POST",
     body: JSON.stringify(payload)
   });
 }
 
-export async function getUserByEmail(email: string) {
-  return request<UserDetail>(`/api/v1/users/by-email/${encodeURIComponent(email)}`);
+export function loginUser(email: string, password: string) {
+  return request<UserDetail>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
+}
+
+export function getCurrentUser() {
+  return request<UserDetail>("/api/v1/auth/me");
+}
+
+export function logoutUser() {
+  return request<{ message: string }>("/api/v1/auth/logout", { method: "POST" });
+}
+
+export function requestPasswordReset(email: string) {
+  return request<{ message: string }>("/api/v1/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export function resetPassword(token: string, password: string, email: string) {
+  return request<{ message: string }>("/api/v1/auth/reset-password", { method: "POST", body: JSON.stringify({ token, password, email }) });
 }
 
 export async function listTasks(userId: string) {

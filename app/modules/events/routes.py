@@ -1,3 +1,5 @@
+from app.modules.users.models import User
+from app.core.auth import get_current_user
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -30,10 +32,11 @@ def create_event(payload: EventCreate, db: Session = Depends(get_db)) -> EventRe
 
 @router.get("", response_model=list[EventRead])
 def list_events(
+    user: User = Depends(get_current_user),
     user_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[EventRead]:
-    query = select(Event).order_by(Event.start_at.asc())
+    query = select(Event).where(Event.user_id == user.id).order_by(Event.start_at.asc())
     if user_id:
         query = query.where(Event.user_id == user_id)
     events = db.scalars(query).all()

@@ -26,3 +26,11 @@ class SessionRecord(Base):
     feedback_notes: Mapped[str] = mapped_column(Text, default="")
     notes: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(32), default="active")
+
+
+class RemainingEstimate(Base):
+    __tablename__ = "remaining_estimates"
+
+    session_id: Mapped[str] = mapped_column(ForeignKey("sessions.id"), unique=True)
+    remaining_minutes: Mapped[int] = mapped_column(Integer)
+    reported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

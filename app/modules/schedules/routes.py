@@ -1,13 +1,14 @@
+from app.core.auth import get_current_user
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, save_and_refresh, new_id
 from app.core.http import not_found
-from app.modules.schedules.models import Schedule, TimeBlock
+from app.modules.schedules.models import AdaptivePlan, Schedule, TimeBlock
 from app.modules.schedules.planner import build_schedule_blocks, dependency_requirements
 from app.modules.reasoning.generative import order_tasks
 from app.modules.schedules.schemas import (
@@ -41,10 +42,11 @@ def create_schedule(payload: ScheduleCreate, db: Session = Depends(get_db)) -> S
 
 @router.get("", response_model=list[ScheduleRead])
 def list_schedules(
+    user: User = Depends(get_current_user),
     user_id: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[ScheduleRead]:
-    query = select(Schedule).order_by(Schedule.plan_date.asc())
+    query = select(Schedule).where(Schedule.user_id == user.id).order_by(Schedule.plan_date.asc())
     if user_id:
         query = query.where(Schedule.user_id == user_id)
     schedules = db.scalars(query).all()
@@ -96,6 +98,15 @@ def generate_schedule(payload: ScheduleGenerateRequest, db: Session = Depends(ge
         break_minutes=payload.break_minutes,
         ordered_task_ids=order,
     )
+    runtime = db.scalar(select(AdaptivePlan).where(AdaptivePlan.schedule_id == schedule.id))
+    if runtime is None:
+        runtime = AdaptivePlan(schedule_id=schedule.id, user_id=payload.user_id)
+        db.add(runtime)
+    runtime.window_start = start_at
+    runtime.window_end = window_end
+    runtime.break_minutes = payload.break_minutes
+    runtime.deferred_tasks = unscheduled_raw
+    runtime.fingerprint = ""
     # Only replace the previous draft after generation and validation have succeeded.
     schedule.generated_by = "llm_validated" if metadata["generation_source"] == "llm" else "timeblind_scheduler"
     schedule.status = "draft"
@@ -117,16 +128,14 @@ def generate_schedule(payload: ScheduleGenerateRequest, db: Session = Depends(ge
     )
 
 
-@router.get("/{schedule_id}", response_model=ScheduleDetail)
+@router.get("/{schedule_id}", response_model=ScheduleGenerationResponse)
 def get_schedule(schedule_id: str, db: Session = Depends(get_db)) -> ScheduleDetail:
     schedule = db.get(Schedule, schedule_id)
     if schedule is None:
         raise not_found("Schedule", schedule_id)
-    _mark_missed_blocks(db, schedule.user_id)
-    blocks = db.scalars(
-        select(TimeBlock).where(TimeBlock.schedule_id == schedule_id).order_by(TimeBlock.start_at.asc())
-    ).all()
-    return ScheduleDetail.model_validate({**schedule.__dict__, "time_blocks": blocks})
+    from app.modules.interventions.policy import plan_response
+    return plan_response(db, schedule)
+
 
 
 @router.get("/time-blocks/{time_block_id}", response_model=TimeBlockRead)
@@ -164,10 +173,21 @@ def start_time_block_session(
     payload: TimeBlockStartRequest,
     db: Session = Depends(get_db),
 ) -> TimeBlockStartResponse:
-    _mark_missed_blocks(db, payload.user_id)
     block = db.get(TimeBlock, time_block_id)
     if block is None:
         raise not_found("TimeBlock", time_block_id)
+
+    db.execute(update(AdaptivePlan).where(AdaptivePlan.schedule_id == block.schedule_id)
+               .values(updated_at=datetime.now(timezone.utc)))
+    db.refresh(block)
+
+    if block.status in {"completed", "superseded", "cancelled"}:
+        raise HTTPException(409, "This block is no longer available. Refresh the schedule.")
+    existing = db.scalar(select(SessionRecord).where(SessionRecord.time_block_id == block.id,
+                         SessionRecord.status == "active", SessionRecord.ended_at.is_(None)))
+    if existing is not None:
+        db.commit()
+        return TimeBlockStartResponse.model_validate({"time_block": block, "session": existing})
 
     started_at = payload.started_at or datetime.now(timezone.utc)
     normalized_start = _normalize_datetime(started_at)
@@ -178,7 +198,7 @@ def start_time_block_session(
     block.actual_start = normalized_start
     block.delay_minutes = delay_minutes
     block.planned_duration_minutes = block.planned_duration_minutes or _duration_minutes(block.start_at, block.end_at)
-    block = save_and_refresh(db, block)
+    db.add(block)
 
     session_record = SessionRecord(
         user_id=payload.user_id,
@@ -208,92 +228,21 @@ def recover_schedule_after_block(
     if schedule is None:
         raise not_found("Schedule", current_block.schedule_id)
 
-    resumed_from = _normalize_datetime(payload.resumed_from or datetime.now(timezone.utc))
-    all_blocks = db.scalars(
-        select(TimeBlock).where(TimeBlock.schedule_id == schedule.id).order_by(TimeBlock.start_at.asc())
-    ).all()
-    planned_future_blocks = [
-        block
-        for block in all_blocks
-        if block.status == "planned" and _normalize_datetime(block.start_at) >= _normalize_datetime(current_block.end_at)
-    ]
-    latest_window_end = max(_normalize_datetime(block.end_at) for block in all_blocks)
-
-    for block in planned_future_blocks:
-        db.delete(block)
+    from app.modules.interventions.policy import ensure_plan, replan, plan_response
+    blocks = db.scalars(select(TimeBlock).where(TimeBlock.schedule_id == schedule.id)).all()
+    runtime = ensure_plan(db, schedule, blocks)
+    if runtime is None:
+        raise HTTPException(409, "Generate a schedule before recovering it")
+    now = _normalize_datetime(payload.resumed_from or datetime.now(timezone.utc))
+    replan(db, runtime, now, force=True)
     db.commit()
+    response = plan_response(db, schedule)
+    next_block = next((block for block in response.time_blocks if block.kind == "task"
+                       and block.status == "planned" and _normalize_datetime(block.start_at) >= now), None)
+    return ScheduleRecoveryResponse(schedule=response, next_time_block=next_block,
+        suggested_break_minutes=0, message=runtime.reason, rescheduled=True,
+        deferred_tasks=response.unscheduled_tasks)
 
-    occupied_task_ids = {
-        block.task_id
-        for block in all_blocks
-        if block.kind == "task"
-        and block.task_id
-        and (block.id == current_block.id or block.status in {"active", "completed", "missed"})
-    }
-    task_query = select(Task).where(Task.user_id == payload.user_id, Task.status != "completed")
-    if occupied_task_ids:
-        task_query = task_query.where(Task.id.not_in(occupied_task_ids))
-    tasks = db.scalars(task_query.order_by(Task.created_at.asc())).all()
-
-    if not tasks:
-        refreshed_blocks = db.scalars(
-            select(TimeBlock).where(TimeBlock.schedule_id == schedule.id).order_by(TimeBlock.start_at.asc())
-        ).all()
-        return ScheduleRecoveryResponse(
-            schedule=ScheduleDetail.model_validate({**schedule.__dict__, "time_blocks": refreshed_blocks}),
-            next_time_block=None,
-            suggested_break_minutes=0,
-            message="Nice work. That wraps this window, and there are no other pending tasks ready to pull in right now.",
-            rescheduled=False,
-            deferred_tasks=[],
-        )
-
-    start_after_break = resumed_from
-    suggested_break_minutes = payload.suggested_break_minutes if tasks else 0
-    if tasks and suggested_break_minutes > 0:
-        break_block = TimeBlock(
-            schedule_id=schedule.id,
-            user_id=payload.user_id,
-            title="Catch your breath",
-            kind="break",
-            start_at=resumed_from,
-            end_at=resumed_from + _minutes_delta(suggested_break_minutes),
-            planned_duration_minutes=suggested_break_minutes,
-            risk_level="low",
-            risk_buffer_minutes=0,
-            risk_reason="Short recovery space after the schedule shifted.",
-            status="planned",
-        )
-        save_and_refresh(db, break_block)
-        start_after_break = break_block.end_at
-
-    rebuilt_blocks, deferred_raw = build_schedule_blocks(
-        db=db,
-        schedule_id=schedule.id,
-        user_id=payload.user_id,
-        tasks=tasks,
-        start_at=start_after_break,
-        window_end=latest_window_end,
-        break_minutes=payload.suggested_break_minutes,
-    )
-    schedule.generated_by = "timeblind_scheduler"
-    db.add(schedule)
-    persisted_blocks = [save_and_refresh(db, block) for block in rebuilt_blocks]
-    db.commit()
-    refreshed_blocks = db.scalars(
-        select(TimeBlock).where(TimeBlock.schedule_id == schedule.id).order_by(TimeBlock.start_at.asc())
-    ).all()
-    next_time_block = next((block for block in persisted_blocks if block.kind == "task" and block.task_id), None)
-    deferred_tasks = [UnscheduledTask(**item) for item in deferred_raw]
-
-    return ScheduleRecoveryResponse(
-        schedule=ScheduleDetail.model_validate({**schedule.__dict__, "time_blocks": refreshed_blocks}),
-        next_time_block=TimeBlockRead.model_validate(next_time_block) if next_time_block else None,
-        suggested_break_minutes=suggested_break_minutes,
-        message="No worries. The rest of the plan was adjusted so you can keep moving without having to recalculate it yourself.",
-        rescheduled=True,
-        deferred_tasks=deferred_tasks,
-    )
 
 
 def _minutes_delta(minutes: int):
@@ -323,3 +272,15 @@ def _normalize_datetime(value):
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+@router.post("/{schedule_id}/replan", response_model=ScheduleGenerationResponse)
+def replan_schedule(schedule_id: str, db: Session = Depends(get_db)):
+    from app.modules.interventions.policy import ensure_plan, replan, plan_response
+    schedule = db.get(Schedule, schedule_id)
+    blocks = db.scalars(select(TimeBlock).where(TimeBlock.schedule_id == schedule_id)).all()
+    runtime = ensure_plan(db, schedule, blocks)
+    if runtime is None:
+        raise HTTPException(409, "Generate a schedule first")
+    replan(db, runtime, datetime.now(timezone.utc), force=True)
+    db.commit()
+    return plan_response(db, schedule)

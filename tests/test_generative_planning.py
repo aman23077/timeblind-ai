@@ -1,3 +1,4 @@
+from app.core.auth import get_current_user
 import json
 from datetime import date, datetime, timedelta, timezone
 
@@ -52,6 +53,7 @@ def db():
 @pytest.fixture
 def client(db):
     app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: db.get(User, "u")
     # Do not run the application lifespan, which initializes the real local database.
     test_client = TestClient(app)
     yield test_client

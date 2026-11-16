@@ -1,0 +1,2 @@
+user_id,title,description,start_at,end_at,location,commute_minutes,get_ready_minutes,departure_buffer_minutes,id,created_at,updated_at,scenario_id,expected_policy,data_source
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,Synthetic event,,2026-10-01T10:25:00+00:00,2026-10-01T11:00:00+00:00,,0,0,0,5465fce3-4c84-5ea9-85fb-b276b38a52cb,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,event_gap,not_applicable,synthetic
