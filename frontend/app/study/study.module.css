@@ -1,0 +1,48 @@
+.page { max-width: 980px; padding: 24px; margin: 0 auto; font-size: 1rem; line-height: 1.6; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 12px 0 28px; }
+.header > a { font-weight: 800; font-size: 1.25rem; text-decoration: none; }
+.header nav { display: flex; gap: 24px; }
+.hero { padding: 42px 0 32px; max-width: 810px; }
+.hero h1 { font-size: clamp(2.2rem, 6vw, 3.7rem); line-height: 1.12; letter-spacing: -.04em; margin: 14px 0 20px; }
+.hero > p { font-size: 1.15rem; max-width: 680px; color: #475569; }
+.eyebrow { text-transform: uppercase; letter-spacing: .1em; font-size: .875rem; font-weight: 700; color: #1d4ed8; }
+.card { background: #fff; border: 1px solid #dce3ee; border-radius: 20px; padding: 28px; margin: 24px 0; box-shadow: 0 8px 30px #1e3a5f06; }
+.card h2 { font-size: 1.45rem; line-height: 1.35; margin: 0 0 12px; }
+.card p { color: #475569; }
+.card form { margin-top: 22px; }
+.page fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.page legend { font-weight: 600; padding: 0 0 16px; }
+.page label { display: flex; flex-direction: column; gap: 8px; font-weight: 600; margin: 0 0 20px; }
+.page input, .page select, .page textarea { display: block; width: 100%; font: inherit; background: #f8fafc; color: #0f172a; border: 1px solid #b7c5d8; border-radius: 10px; padding: 12px 14px; min-height: 48px; }
+.page textarea { min-height: 90px; }
+.page select { appearance: none; padding-right: 40px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; }
+.page button { font: inherit; font-weight: 650; border: 0; border-radius: 10px; background: #1d4ed8; color: white; padding: 12px 20px; cursor: pointer; min-height: 48px; }
+.page button:disabled { opacity: .55; cursor: wait; }
+.page button:focus-visible, .page input:focus-visible, .page select:focus-visible, .page textarea:focus-visible { outline: 3px solid #f97316; outline-offset: 3px; }
+.page .secondary { background: #e2e8f0; color: #0f172a; }
+.page .check { flex-direction: row; align-items: flex-start; gap: 12px; font-weight: 400; }
+.check input { width: 22px; min-width: 22px; min-height: 22px; height: 22px; margin-top: 3px; }
+.columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 18px; }
+.facts { display: flex; flex-wrap: wrap; gap: 12px 24px; font-size: .95rem; margin: 20px 0; }
+.facts span { background: #eff6ff; border-radius: 8px; padding: 8px 12px; }
+.sectionHead { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+.badge { background: #e0f2fe; color: #075985; border-radius: 8px; padding: 6px 12px; font-size: .875rem; white-space: nowrap; }
+.page .timer { color: #1d4ed8; font-size: 2.5rem; font-weight: 700; margin-bottom: 8px; }
+.timer span { font-size: 1rem; font-weight: 400; }
+.error { padding: 16px; background: #fff1f2; color: #9f1239; border-radius: 10px; }
+.notice { padding: 16px; background: #ecfdf5; color: #065f46; border-radius: 10px; }
+.withdraw { padding: 20px 0; }
+.footer { color: #64748b; font-size: .875rem; border-top: 1px solid #dce3ee; padding: 24px 0; margin-top: 28px; }
+.page code { overflow-wrap: anywhere; }
+.metricGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+.metricGrid strong { display: block; font-size: 2rem; color: #1d4ed8; }
+.tableWrap { overflow-x: auto; }
+.page table { width: 100%; border-collapse: collapse; }
+.page td, .page th { text-align: left; padding: 12px; border-bottom: 1px solid #dce3ee; }
+@media (max-width: 600px) { .page { padding: 16px; } .card { padding: 20px; } .hero { padding-top: 20px; } .sectionHead { flex-direction: column; gap: 8px; } .facts { gap: 10px; } }
+
+.progress { width: 100%; height: 14px; accent-color: #1d4ed8; margin: 12px 0; }
+.plan { margin: 18px 0; padding: 16px; background: #f8fafc; border: 1px solid #dce3ee; border-radius: 12px; }
+.plan summary { cursor: pointer; font-weight: 650; }
+.plan li { margin: 10px 0; }
+.header nav { flex-wrap: wrap; align-items: center; }

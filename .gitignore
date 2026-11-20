@@ -33,6 +33,8 @@ yarn-error.log*
 # Archives and generated bundles
 *.zip
 docs/report_qa/
+tmp/
+output/report_qa/
 
 # OS / editor
 .DS_Store

@@ -65,6 +65,7 @@ export default function AdminPage() {
   </section></main>;
   return <main className="content-shell">
     <section className="panel"><h1>Administration</h1><Link href="/">Back to app / log in</Link>
+      <p><Link href="/study/admin">Open pilot results and research export</Link> · <Link href="/study">Participant study page</Link></p>
       <p>Signed in as {currentUser.email}</p>
       <div className="session-action-row"><a className="task-link-button" href="/api/v1/admin/export">Download all entries (ZIP)</a><a className="task-link-button" href="/api/v1/admin/export?source=synthetic">Download synthetic entries (ZIP)</a></div>
       <p>Exports contain linked CSV tables and provenance labels. Existing records are marked unverified. Review research consent and identifying text before using or sharing real-user data.</p>

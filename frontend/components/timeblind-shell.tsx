@@ -539,6 +539,8 @@ export function TimeblindShell() {
                   Create a workspace, add real tasks, run focus sessions, and let your actual completion data improve
                   future planning.
                 </p>
+                <Link href="/study" className="primary-button task-link-button">Join the participant pilot</Link>
+                <p>Testing with us? Use the pilot page to record your estimates, tasks and feedback.</p>
                 <div className="welcome-visual-card" aria-label="Planning preview">
                   <div className="planner-orbit">
                     <span />
@@ -863,6 +865,7 @@ function Header({
         </div>
       </div>
       <div className="header-actions">
+        <Link href="/study" className="ghost-button task-link-button">Participant study</Link>
         <button className="status-pill status-pill-button" type="button" onClick={onOpenPendingTasks}>
           {pendingCount ? `${pendingCount} task(s) waiting` : "Queue is clear"}
         </button>

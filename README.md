@@ -4,6 +4,10 @@ TimeBlindAI is a full-stack productivity assistant for people who struggle with 
 
 The project has a FastAPI backend and a Next.js frontend.
 
+## November participant pilot
+
+The `/study` page provides separate pilot consent, prospective personal and rules estimates, server-timed tasks with reported breaks, and final feedback. `/study/admin` provides consent-filtered statistics and a pseudonymous CSV ZIP for authorized administrators. See [the November pilot protocol and deployment checks](docs/pilot-study.md). The new pages must be deployed to the existing Render services before sharing them with participants. Pilot targets are not collected results.
+
 ## Account login
 
 Use email and password to register or log in. Registration validates email format and prevents duplicate accounts. Existing email-only accounts can set their first password using the [account setup and recovery instructions](docs/authentication.md). Restart both servers after updating so the authentication tables and frontend API proxy are loaded.

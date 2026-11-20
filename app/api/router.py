@@ -15,11 +15,13 @@ from app.modules.schedules.routes import router as schedules_router
 from app.modules.sessions.routes import router as sessions_router
 from app.modules.tasks.routes import router as tasks_router
 from app.modules.users.routes import router as users_router
+from app.modules.study.routes import router as study_router
 
 
 from app.modules.interventions.policy import router as policy_router
 
 api_router = APIRouter()
+api_router.include_router(study_router, prefix="/api/v1/study", tags=["study"])
 api_router.include_router(policy_router, prefix="/api/v1/policy", tags=["policy"])
 api_router.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
 api_router.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
