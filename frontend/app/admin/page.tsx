@@ -14,7 +14,7 @@ type Records = { table: string; tables: string[]; columns: string[]; total: numb
 
 async function read<T>(path: string): Promise<T> {
   const response = await fetch(`/api/v1/admin/${path}`, { credentials: "same-origin", cache: "no-store" });
-  if (!response.ok) throw new Error(response.status === 401 ? "Log in to your administrator account first." : response.status === 403 ? "This account does not have administrator access." : "Could not load entries.");
+  if (!response.ok) throw new Error(response.status === 401 ? "Log in to your administrator account first." : response.status === 403 ? "This account does not have administrator access." : `Could not load entries (HTTP ${response.status}). The user count is unavailable, not zero.`);
   return response.json();
 }
 
@@ -70,7 +70,7 @@ export default function AdminPage() {
       <div className="session-action-row"><a className="task-link-button" href="/api/v1/admin/export">Download all entries (ZIP)</a><a className="task-link-button" href="/api/v1/admin/export?source=synthetic">Download synthetic entries (ZIP)</a></div>
       <p>Exports contain linked CSV tables and provenance labels. Existing records are marked unverified. Review research consent and identifying text before using or sharing real-user data.</p>
       {error && <p role="alert" className="error-banner">{error}</p>}
-      <h2>Users ({total})</h2>
+      <h2>Users ({error && !users.length ? "unavailable" : total})</h2>
       {users.map((user) => <div className="result-row" key={user.id}>
         <span>{user.display_name} — {user.email}</span>
         <button onClick={() => { setSelected(user.id); setEntryOffset(0); setRecordOffset(0); }}>View entries</button>

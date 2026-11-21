@@ -85,6 +85,21 @@ def test_record_browser_is_allowlisted_and_scoped(setup):
     assert client.get("/api/v1/admin/users/real/records").status_code == 403
 
 
+def test_admin_can_read_recovered_legacy_owner(setup):
+    client, db = setup
+    db.add(AdminAccess(user_id="admin"))
+    db.add(User(id="recovered", email="legacy-placeholder@migration.invalid", display_name="Recovered legacy owner"))
+    db.commit()
+    app.dependency_overrides[get_current_user] = lambda: db.get(User, "admin")
+    response = client.get("/api/v1/admin/users")
+    assert response.status_code == 200, response.text
+    assert response.json()["total"] == 4
+    assert any(row["id"] == "recovered" for row in response.json()["users"])
+    response = client.get("/api/v1/admin/users/recovered")
+    assert response.status_code == 200, response.text
+    assert response.json()["user"]["email"] == "legacy-placeholder@migration.invalid"
+
+
 def test_synthetic_generation_repeatability_and_grouped_splits():
     rows = benchmark.duration_rows(23077)
     assert rows == benchmark.duration_rows(23077)
