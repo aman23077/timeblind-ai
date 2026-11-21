@@ -132,3 +132,30 @@ def test_scope_changes_and_unfinished_do_not_enter_accuracy(setup):
     data = client.get("/api/v1/study/admin/summary").json()
     assert data["eligible_tasks"] == 0 and data["excluded_completed_tasks"] == data["unfinished_tasks"] == 1
     assert data["methods"]["rules"]["mae_minutes"] is None
+
+
+def test_manual_rehearsal_and_scheduler_review(setup):
+    client, db = setup
+    login(db)
+    join(client)
+    payload = {"window_minutes": 90, "tasks": [{"title": "Review course notes", "user_estimate_minutes": 20} for _ in range(3)]}
+    assert client.post("/api/v1/study/scheduler", json=payload).status_code == 409
+    for _ in range(3):
+        row = task(client)
+        path = f'/api/v1/study/tasks/{row["id"]}'
+        client.post(path + "/start", json={})
+        result = client.post(path + "/finish", json={"outcome":"completed", "break_minutes":0, "scope_changed":False, "friction":"none", "timing_source":"rehearsal", "manual_minutes":35})
+        assert result.status_code == 200, result.text
+    response = client.post("/api/v1/study/scheduler", json=payload)
+    assert response.status_code == 200, response.text
+    trial = response.json()
+    assert all(trial["snapshot"]["checks"].values())
+    review = {"feasible":4,"ordering":3,"feedback_useful":5,"explanation_clear":4,"comments":"Private comment"}
+    assert client.post(f'/api/v1/study/scheduler/{trial["id"]}/review', json=review).status_code == 200
+    db.add(AdminAccess(user_id="a")); db.commit()
+    data=client.get("/api/v1/study/admin/summary").json()
+    assert data["eligible_tasks"] == 0
+    assert data["timing_sources"]["rehearsal"] == 3
+    assert data["scheduler"]["reviewed"] == 1
+    login(db,"b"); join(client)
+    assert client.post(f'/api/v1/study/scheduler/{trial["id"]}/review',json=review).status_code == 404

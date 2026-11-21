@@ -4,11 +4,12 @@ import io
 import json
 import statistics
 import zipfile
+from datetime import timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import select, update, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -16,13 +17,21 @@ from app.core.auth import aware, get_current_user
 from app.core.database import get_db, utc_now
 from app.modules.reasoning.task_decomposer import decompose_task
 from app.modules.sessions.models import SessionRecord
-from app.modules.study.models import PROTOCOL, StudyEnrollment, StudyFeedback, StudyTask
+from app.modules.study.models import PROTOCOL, StudyEnrollment, StudyFeedback, StudyTask, StudyTiming, StudyScheduleTrial
 from app.modules.tasks.models import Task, TaskStep
 from app.modules.tasks.schemas import TaskDecompositionRequest, TaskDifficulty, TaskType
 from app.modules.users.admin_routes import require_admin
 from app.modules.users.models import User
 
 router = APIRouter()
+
+
+class TrialReview(BaseModel):
+    feasible: int = Field(ge=1, le=5)
+    ordering: int = Field(ge=1, le=5)
+    feedback_useful: int = Field(ge=1, le=5)
+    explanation_clear: int = Field(ge=1, le=5)
+    comments: str = Field(default="", max_length=1000)
 
 
 class EnrollmentInput(BaseModel):
@@ -38,7 +47,53 @@ class TaskInput(BaseModel):
     user_estimate_minutes: int = Field(ge=5, le=180)
 
 
+class TrialInput(BaseModel):
+    tasks: list[TaskInput] = Field(min_length=3, max_length=3)
+    window_minutes: int = Field(ge=15, le=480)
+
+
+@router.post("/scheduler")
+def scheduler_trial(payload: TrialInput, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    member = enrollment(db, user)
+    count = db.scalar(select(func.count()).select_from(StudyTask).where(StudyTask.enrollment_id == member.id, StudyTask.outcome.in_(["completed", "unfinished"])))
+    if count < 3:
+        raise HTTPException(409, "Record three task attempts before the scheduler exercise")
+    from app.modules.schedules.planner import build_schedule_blocks
+    from app.core.database import new_id
+    start = utc_now()
+    end = start + timedelta(minutes=payload.window_minutes)
+    tasks = [Task(id=new_id(), user_id=user.id, title=t.title, task_type=t.task_type, difficulty=t.difficulty,
+                  estimated_minutes=t.user_estimate_minutes, priority="medium", status="pending", created_at=start) for t in payload.tasks]
+    blocks, deferred = build_schedule_blocks(db, new_id(), user.id, tasks, start, end, 5)
+    ordered = sorted(blocks, key=lambda b: b.start_at)
+    checks = {"within_window": all(aware(b.start_at) >= start and aware(b.end_at) <= end for b in blocks),
+              "no_overlap": all(aware(a.end_at) <= aware(b.start_at) for a, b in zip(ordered, ordered[1:])),
+              "positive_duration": all(b.end_at > b.start_at for b in blocks)}
+    snapshot = {"kind": "hypothetical_scheduler_exercise", "window_minutes": payload.window_minutes,
+                "blocks": [{"title": b.title, "start_at": aware(b.start_at).isoformat(), "end_at": aware(b.end_at).isoformat(), "kind": b.kind} for b in blocks],
+                "deferred": [{"title": r.get("title"), "reason": r.get("reason")} for r in deferred], "checks": checks,
+                "task_count": len(tasks), "scheduled_tasks": sum(b.task_id is not None for b in blocks),
+                "guidance": "Five-minute breaks are included where feasible. Deferred tasks did not fit the available window. This exercise tests a proposed plan, not actual execution."}
+    row = StudyScheduleTrial(enrollment_id=member.id, snapshot=snapshot)
+    db.add(row)
+    db.commit()
+    return {"id": row.id, "snapshot": snapshot, "review": None}
+
+
+@router.post("/scheduler/{trial_id}/review")
+def trial_review(trial_id: str, payload: TrialReview, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    member = enrollment(db, user)
+    row = db.get(StudyScheduleTrial, trial_id)
+    if row is None or row.enrollment_id != member.id:
+        raise HTTPException(404, "Scheduler exercise not found")
+    row.review = payload.model_dump()
+    db.commit()
+    return {"saved": True}
+
+
 class OutcomeInput(BaseModel):
+    timing_source: Literal["timer", "recalled_real", "rehearsal"] = "timer"
+    manual_minutes: float | None = Field(default=None, ge=1, le=1440, allow_inf_nan=False)
     outcome: Literal["completed", "unfinished"]
     break_minutes: float = Field(ge=0, le=1440, allow_inf_nan=False)
     scope_changed: bool
@@ -76,6 +131,8 @@ def task_data(row, db=None):
               "rules_estimate_minutes", "prediction_method", "predicted_at", "started_at", "completed_at",
               "elapsed_minutes", "break_minutes", "actual_minutes", "scope_changed", "outcome", "friction"]
     result = {field: getattr(row, field) for field in fields}
+    timing = db.scalar(select(StudyTiming).where(StudyTiming.record_id == row.id)) if db else None
+    result["timing_source"] = timing.source if timing else "timer"
     for key in ("predicted_at", "started_at", "completed_at"):
         result[key] = aware(result[key]).isoformat() if result[key] else None
     result["steps"] = [{"title": s.title, "minutes": s.suggested_minutes} for s in db.scalars(
@@ -90,6 +147,7 @@ def status(response: Response, db: Session = Depends(get_db), user: User = Depen
     records = db.scalars(select(StudyTask).where(StudyTask.enrollment_id == member.id).order_by(StudyTask.created_at)).all() if member else []
     feedback = db.scalar(select(StudyFeedback).where(StudyFeedback.enrollment_id == member.id)) if member else None
     return {"protocol": PROTOCOL, "enrolled": member is not None, "withdrawn": bool(member and member.withdrawn_at),
+            "schedule_trials": [{"id": r.id, "snapshot": r.snapshot, "review": r.review} for r in db.scalars(select(StudyScheduleTrial).where(StudyScheduleTrial.enrollment_id == member.id).order_by(StudyScheduleTrial.created_at)).all()] if member else [],
             "participant_code": member.id if member else None, "feedback_submitted": feedback is not None,
             "feedback": {key: getattr(feedback, key) for key in FeedbackInput.model_fields} if feedback else None,
             "tasks": [task_data(row, db) for row in records]}
@@ -182,7 +240,9 @@ def finish(record_id: str, payload: OutcomeInput, db: Session = Depends(get_db),
         raise HTTPException(409, "Only an active study task can be finished")
     now = utc_now()
     elapsed = (now - aware(record.started_at)).total_seconds() / 60
-    if payload.break_minutes >= elapsed:
+    if payload.timing_source != "timer" and payload.manual_minutes is None:
+        raise HTTPException(422, "Enter manually reported work minutes")
+    if payload.timing_source == "timer" and payload.break_minutes >= elapsed:
         raise HTTPException(422, "Break time must be less than the recorded session time")
     claimed = db.execute(update(StudyTask).where(StudyTask.id == record.id, StudyTask.outcome == "active").values(outcome=payload.outcome))
     if claimed.rowcount != 1:
@@ -190,6 +250,9 @@ def finish(record_id: str, payload: OutcomeInput, db: Session = Depends(get_db),
         raise HTTPException(409, "This task outcome was already saved")
     record.completed_at, record.elapsed_minutes = now, round(elapsed, 3)
     record.break_minutes, record.actual_minutes = payload.break_minutes, round(elapsed - payload.break_minutes, 3)
+    if payload.timing_source != "timer":
+        record.actual_minutes = payload.manual_minutes
+    db.add(StudyTiming(record_id=record.id, source=payload.timing_source))
     record.scope_changed, record.outcome, record.friction = payload.scope_changed, payload.outcome, payload.friction
     session = db.get(SessionRecord, record.session_id)
     session.ended_at = session.actual_end = now
@@ -198,7 +261,9 @@ def finish(record_id: str, payload: OutcomeInput, db: Session = Depends(get_db),
     session.feedback_reasons = payload.friction
     task = db.get(Task, record.task_id)
     task.status = "completed" if payload.outcome == "completed" else "pending"
-    task.actual_minutes = round(record.actual_minutes) if payload.outcome == "completed" else None
+    task.actual_minutes = round(record.actual_minutes) if payload.outcome == "completed" and payload.timing_source == "timer" else None
+    from app.modules.behaviour.activity import ActivityMonitor
+    db.execute(update(ActivityMonitor).where(ActivityMonitor.session_id == session.id).values(enabled=False))
     db.commit()
     return task_data(record)
 
@@ -225,12 +290,15 @@ def study_data(db):
         StudyEnrollment.withdrawn_at.is_(None), User.consent_to_research == "true")).all()
     ids = [row.id for row in members]
     records = db.scalars(select(StudyTask).where(StudyTask.enrollment_id.in_(ids)).order_by(StudyTask.created_at)).all()
+    timing = {r.record_id: r.source for r in db.scalars(select(StudyTiming)).all()}
+    for r in records:
+        r.timing_source = timing.get(r.id, "timer")
     responses = db.scalars(select(StudyFeedback).where(StudyFeedback.enrollment_id.in_(ids))).all()
     return members, records, responses
 
 
 def eligible(row):
-    return row.outcome == "completed" and row.scope_changed is False and row.actual_minutes is not None and row.actual_minutes >= 1
+    return getattr(row, "timing_source", "timer") == "timer" and row.outcome == "completed" and row.scope_changed is False and row.actual_minutes is not None and row.actual_minutes >= 1
 
 
 def summary_data(db):
@@ -254,7 +322,11 @@ def summary_data(db):
         values = [getattr(row, field) for row in responses]
         ratings[field] = {"n": len(values), "median": statistics.median(values) if values else None,
                           "counts_1_to_5": [values.count(n) for n in range(1, 6)]}
-    return {"protocol": PROTOCOL, "consenting_participants": len(members), "recorded_tasks": len(records),
+    trials = db.scalars(select(StudyScheduleTrial).where(StudyScheduleTrial.enrollment_id.in_([m.id for m in members]))).all()
+    scheduler = {"exercises": len(trials), "reviewed": sum(t.review is not None for t in trials),
+                 "constraint_pass_count": sum(all(t.snapshot["checks"].values()) for t in trials),
+                 "ratings": {k: [sum(t.review is not None and t.review[k] == n for t in trials) for n in range(1, 6)] for k in ("feasible", "ordering", "feedback_useful", "explanation_clear")}}
+    return {"scheduler": scheduler, "timing_sources": {k: sum(r.timing_source == k for r in records) for k in ("timer", "recalled_real", "rehearsal")}, "protocol": PROTOCOL, "consenting_participants": len(members), "recorded_tasks": len(records),
             "started_tasks": sum(row.started_at is not None for row in records),
             "completed_tasks": sum(row.outcome == "completed" for row in records),
             "unfinished_tasks": sum(row.outcome == "unfinished" for row in records),
@@ -285,7 +357,7 @@ def export(db: Session = Depends(get_db)):
         write_csv(archive, "participants.csv", ["participant_code", "protocol", "baseline_frequency", "enrolled_at"],
                   [{"participant_code": m.id, "protocol": m.protocol, "baseline_frequency": m.baseline_frequency, "enrolled_at": aware(m.created_at).isoformat()} for m in members])
         # Exclude task titles, app user IDs, emails and free text from the report-safe export.
-        fields = ["participant_code", "record_id", "task_type", "difficulty", "user_estimate_minutes", "rules_estimate_minutes", "prediction_method", "predicted_at", "started_at", "completed_at", "elapsed_minutes", "break_minutes", "actual_minutes", "scope_changed", "outcome", "friction", "eligible"]
+        fields = ["participant_code", "record_id", "task_type", "difficulty", "user_estimate_minutes", "rules_estimate_minutes", "prediction_method", "predicted_at", "started_at", "completed_at", "elapsed_minutes", "break_minutes", "actual_minutes", "timing_source", "scope_changed", "outcome", "friction", "eligible"]
         rows = []
         for r in records:
             row = {key: getattr(r, key) for key in fields if hasattr(r, key)}
@@ -296,6 +368,8 @@ def export(db: Session = Depends(get_db)):
         write_csv(archive, "tasks.csv", fields, rows)
         fields = ["participant_code", "ease", "clarity", "usefulness", "trust", "use_again"]
         write_csv(archive, "feedback.csv", fields, [{**{key: getattr(r, key) for key in fields if key != "participant_code"}, "participant_code": r.enrollment_id} for r in responses])
+        trials = db.scalars(select(StudyScheduleTrial).where(StudyScheduleTrial.enrollment_id.in_([m.id for m in members]))).all()
+        archive.writestr("scheduler.json", json.dumps([{"participant_code": t.enrollment_id, "trial_id": t.id, "checks": t.snapshot["checks"], "review": {k: v for k, v in (t.review or {}).items() if k != "comments"}} for t in trials], indent=2))
         archive.writestr("summary.json", json.dumps(summary_data(db), indent=2))
         archive.writestr("README.txt", "Consenting, non-withdrawn pilot records only. No email, task title, user ID or free text. Timing is server elapsed minus self-reported breaks. Study tasks use frozen unpersonalized rules, not LLM inference. Pseudonymous data is not anonymous. Store privately; do not commit participant exports.\n")
     return Response(output.getvalue(), media_type="application/zip", headers={"Cache-Control": "no-store", "Content-Disposition": 'attachment; filename="timeblind-pilot.zip"'})

@@ -1,5 +1,29 @@
 # November 2026 participant pilot
 
+## Expanded workflow amendment
+
+The pilot now introduces the app on the participant page and offers optional Windows companion monitoring during live sessions. Participants explicitly enable monitoring and run the companion; no browser-only desktop access is claimed. Closing the monitoring details panel does not stop collection; use Stop monitoring or finish the task. No screen images or keystrokes are collected. This supersedes the earlier statement that monitoring is outside the pilot.
+
+After three recorded attempts, the scheduler exercise unlocks. Participants enter three hypothetical task scopes, durations and a window. The production deterministic scheduler generates a proposed plan, break guidance and deferred-task reasons. Snapshots and four separate review ratings are saved: feasibility, ordering, usefulness of guidance and explanation clarity. The exercise does not execute the plan or establish real-world schedule accuracy. It creates no fake completed work in the operational task database.
+
+Finish forms support live timer, recalled real work, and hypothetical rehearsal. Manual work minutes exclude breaks. Both manual modes are excluded from primary prospective duration error, and remain labeled in exports and source counts. Manual values do not populate ordinary task actual-duration history. Existing records without timing provenance retain the original timer interpretation. The original backup and historical measurements are not overwritten.
+
+Use these results in the report:
+
+| Question | Metric and denominator | What it supports |
+| --- | --- | --- |
+| Were duration predictions close? | Live eligible tasks within 15 minutes / all live eligible tasks; paired MAE and participant-level mean errors | Prospective duration agreement |
+| Did schedules satisfy the checked constraints? | Plans passing window, non-overlap and positive-duration checks / generated exercise plans | Constraint conformance for tested scenarios |
+| Was scheduler guidance useful? | Reviews scoring 4 or 5 on feedback_useful / submitted scheduler reviews | Perceived usefulness, not causal improvement |
+| Did plans seem feasible? | Feasibility rating distribution and 4–5 share among respondents | Subjective feasibility, not observed execution |
+| Was the interface usable? | Custom final-question distributions, response count and written themes | Usability findings within the volunteer sample |
+
+For example, 18 of 20 respondents rating guidance 4 or 5 means “90% of respondents rated scheduler guidance useful,” not “the scheduler is 90% accurate.” Report the numerator, denominator, scenario conditions and exclusions. Never substitute rehearsal minutes for measured real work.
+
+To measure real schedule adherence later, save the generated plan before work, follow its scheduled blocks, and compare actual start/end times, completion by planned end and deadline misses. The quick hypothetical exercise cannot supply those outcomes. Use a separate live cohort and account for changes in scope, interruptions and replanning. For monitoring validation, compare manually recorded reference app switches and idle intervals with companion records; do not equate input inactivity with distraction.
+
+The earlier report draft describes the initial protocol; revise its methods and consent appendix to reflect this amendment before submission.
+
 This is the launch and analysis protocol for the BTP report due November 25, 2026. The target is approximately 20 adult participants completing three real tasks each. Sixty completed records is a recruitment target, not an observed result or a statistical power calculation.
 
 ## Dates and responsibilities

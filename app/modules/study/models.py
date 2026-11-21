@@ -1,12 +1,25 @@
 """Prospective pilot records, kept separate from synthetic and ordinary usage."""
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, text
+from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, String, Text, JSON, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
 PROTOCOL = "nov2026-pilot-v1"
+
+
+class StudyTiming(Base):
+    __tablename__ = "study_timings"
+    record_id: Mapped[str] = mapped_column(ForeignKey("study_tasks.id"), unique=True)
+    source: Mapped[str] = mapped_column(String(32))
+
+
+class StudyScheduleTrial(Base):
+    __tablename__ = "study_schedule_trials"
+    enrollment_id: Mapped[str] = mapped_column(ForeignKey("study_enrollments.id"), index=True)
+    snapshot: Mapped[dict] = mapped_column(JSON)
+    review: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class StudyEnrollment(Base):
