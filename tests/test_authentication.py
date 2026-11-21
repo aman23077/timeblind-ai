@@ -54,10 +54,20 @@ def test_register_normalization_password_storage_and_duplicate(setup):
     assert db.get(User, user["id"]).display_name == "Test"
 
 
-@pytest.mark.parametrize("email,password", [("invalid", PASSWORD), ("a@example.com", "short"), ("a@example.com", "a" * 129)])
+@pytest.mark.parametrize("email,password", [("invalid", PASSWORD), ("a@example.com", ""), ("a@example.com", "a" * 1025)])
 def test_invalid_registration(setup, email, password):
     client, _ = setup
     assert client.post("/api/v1/auth/register", json={"email": email, "password": password, "display_name": "Test"}).status_code == 422
+
+
+@pytest.mark.parametrize("password", ["a", "a" * 129])
+def test_relaxed_password_length(setup, password):
+    client, _ = setup
+    from app.modules.users.auth_routes import ResetInput
+    assert ResetInput(token="x" * 43, password=password).password == password
+    assert client.post("/api/v1/auth/register", json={"email": "short@example.com", "password": password, "display_name": "Test"}).status_code == 201
+    client.post("/api/v1/auth/logout")
+    assert client.post("/api/v1/auth/login", json={"email": "short@example.com", "password": password}).status_code == 200
 
 
 def test_login_logout_expiry_and_old_demo_routes(setup):

@@ -2,7 +2,7 @@
 
 Registration checks email syntax and rejects duplicate addresses after trimming whitespace and lowercasing. It immediately creates a password-protected account. Email mailbox ownership verification is optional future work, outside this registration flow.
 
-Passwords must contain 12 to 128 characters. The backend stores salted PBKDF2-HMAC-SHA256 hashes with 600,000 iterations. Login issues a random session token in an HttpOnly, SameSite=Lax cookie. Only the token hash is stored in the database, and the session expires after seven days. Logout revokes that login session. Password reset revokes all login sessions and companion upload tokens for the account.
+Passwords must be nonempty. Requests accept up to 1,024 characters. The backend stores salted PBKDF2-HMAC-SHA256 hashes with 600,000 iterations. Login issues a random session token in an HttpOnly, SameSite=Lax cookie. Only the token hash is stored in the database, and the session expires after seven days. Logout revokes that login session. Password reset revokes all login sessions and companion upload tokens for the account.
 
 ## Start after updating
 

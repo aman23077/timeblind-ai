@@ -23,7 +23,7 @@ class TimeBlock(Base):
     task_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("tasks.id"), nullable=True, index=True)
     event_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("events.id"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(180))
-    kind: Mapped[str] = mapped_column(String(32), default="task")
+    kind: Mapped[str] = mapped_column(String(64), default="task")
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     planned_duration_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)

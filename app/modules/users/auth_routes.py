@@ -32,16 +32,16 @@ class EmailInput(BaseModel):
 
 
 class LoginInput(EmailInput):
-    password: str = Field(min_length=1, max_length=128)
+    password: str = Field(min_length=1, max_length=1024)
 
 
 class RegisterInput(UserCreate, EmailInput):
-    password: str = Field(min_length=12, max_length=128)
+    password: str = Field(min_length=1, max_length=1024)
 
 
 class ResetInput(BaseModel):
     token: str = Field(min_length=32, max_length=128)
-    password: str = Field(min_length=12, max_length=128)
+    password: str = Field(min_length=1, max_length=1024)
     email: EmailStr | None = None
 
 

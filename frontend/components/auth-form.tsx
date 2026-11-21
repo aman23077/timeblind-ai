@@ -73,11 +73,11 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated: (user: UserDeta
         <label>Recovery key<input name="token" type="password" autoComplete="off" required /></label>
       </> : null}
       <label>{mode === "reset" ? "New password" : "Password"}
-        <input name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={mode === "login" ? 1 : 12} maxLength={128} required />
+        <input name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} minLength={1} maxLength={1024} required />
       </label>
       {mode !== "login" ? <>
-        <p className="subtle-copy">Use 12–128 characters. A longer passphrase works well.</p>
-        <label>Confirm password<input name="confirmPassword" type="password" autoComplete="new-password" minLength={12} maxLength={128} required /></label>
+        <p className="subtle-copy">Choose a password and enter it again to confirm.</p>
+        <label>Confirm password<input name="confirmPassword" type="password" autoComplete="new-password" minLength={1} maxLength={1024} required /></label>
       </> : null}
       {mode === "register" ? <>
         <label>Name<input name="displayName" autoComplete="name" maxLength={120} required /></label>
