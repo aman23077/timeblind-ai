@@ -6,7 +6,7 @@ The project has a FastAPI backend and a Next.js frontend.
 
 ## November participant pilot
 
-The `/study` page provides separate pilot consent, prospective personal and rules estimates, server-timed tasks with reported breaks, and final feedback. `/study/admin` provides consent-filtered statistics and a pseudonymous CSV ZIP for authorized administrators. See [the November pilot protocol and deployment checks](docs/pilot-study.md). The new pages must be deployed to the existing Render services before sharing them with participants. Pilot targets are not collected results.
+The `/study` page provides separate pilot consent, prospective personal, independent rules, and required AI estimates, shared original-app focus sessions with reported breaks, per-task reviews, real saved AI-assisted schedules, and final feedback. `/study/admin` provides consent-filtered statistics and a pseudonymous CSV ZIP for authorized administrators. See [the November pilot protocol and deployment checks](docs/pilot-study.md). The new pages must be deployed to the existing Render services before sharing them with participants. Pilot targets are not collected results.
 
 ## Account login
 

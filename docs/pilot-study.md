@@ -1,6 +1,16 @@
 # November 2026 participant pilot
 
-## Expanded workflow amendment
+## Current guided AI protocol v3
+
+This section supersedes the earlier rules-only and hypothetical-exercise instructions below. New study tasks call the original AI estimator; new schedules call the original scheduling route with require_ai=true. A disabled or failing provider returns an error, not an AI-labelled rules fallback. Each successful task saves the AI plan, independent rules baseline, model and prompt version. Provider attempt success/failure and latency are stored separately. All prior rules-only records retain their original labels.
+
+Participants confirm the updated AI data-use information before new provider calls. They enter scope notes, inspect AI assumptions and steps, start a shared focus session, and can use the original focus workspace. Pilot completion returns to the guided form for timing, scope, friction and two per-task ratings. The scheduler creates three actual upcoming tasks and saves a real AI-assisted schedule in the main app; scheduled focus links allow actual execution. Review ratings and execution records remain separate.
+
+The LLM proposes ordering; Python enforces calendar constraints. Manual rehearsals and recalled durations remain excluded from prospective accuracy. Main-app manual-duration sessions carry a rehearsal marker and are excluded from measured schedule adherence. The report-safe export adds evidence.csv containing numeric AI predictions, provenance, request outcomes and per-task ratings without task text or written comments. The summary adds AI request reliability, per-task review distributions and explicit execution counts.
+
+Render needs LLM_ENABLED=true, a configured provider/key/model, LLM_FAILURE_MODE=error, and persistent DATABASE_URL. The checked local provider was Groq/openai/gpt-oss-120b; no assertion is made about the current hosted settings. Verify the entire hosted flow after redeployment. Do not publish a percentage without its numerator, denominator and timing source.
+
+## Earlier expanded workflow amendment
 
 The pilot now introduces the app on the participant page and offers optional Windows companion monitoring during live sessions. Participants explicitly enable monitoring and run the companion; no browser-only desktop access is claimed. Closing the monitoring details panel does not stop collection; use Stop monitoring or finish the task. No screen images or keystrokes are collected. This supersedes the earlier statement that monitoring is outside the pilot.
 

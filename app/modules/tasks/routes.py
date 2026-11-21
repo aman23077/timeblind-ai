@@ -98,7 +98,11 @@ def create_task_dependency(
 def decompose_task_route(payload: TaskDecompositionRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> TaskDecompositionResponse:
     payload.user_id = user.id
     multiplier, confidence = _prediction_profile(db, payload.user_id, payload.task_type)
-    return estimate_task(db, payload, multiplier, confidence)
+    result = estimate_task(db, payload, multiplier, confidence)
+    if payload.require_ai and result.generation_source != "llm":
+        from fastapi import HTTPException
+        raise HTTPException(503, "AI task planning is unavailable. Enable the provider on the backend and retry; no rules plan was returned as AI.")
+    return result
 
 
 def _task_detail(db: Session, task: Task) -> TaskDetail:

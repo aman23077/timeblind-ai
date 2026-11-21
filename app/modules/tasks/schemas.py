@@ -22,6 +22,7 @@ TaskDifficulty = Literal["easy", "medium", "hard"]
 
 
 class TaskDecompositionRequest(BaseModel):
+    require_ai: bool = False
     user_id: str | None = None
     title: str = Field(..., min_length=1, max_length=180)
     description: str = Field(default="", max_length=2000)

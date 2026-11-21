@@ -209,7 +209,7 @@ export function SessionPageClient() {
             status: "completed",
             difficulty_feedback: completionOutcome,
             feedback_reasons: feedbackReasons,
-            feedback_notes: feedbackNotes.trim()
+            feedback_notes: (useManualDuration ? "[manual duration; rehearsal] " : "") + feedbackNotes.trim()
           });
 
           setActiveSession(null);
@@ -229,6 +229,7 @@ export function SessionPageClient() {
   }
 
   async function handleCancelSession() {
+    if (searchParams.get("studyRecordId")) { window.location.href = `/study#task-${encodeURIComponent(searchParams.get("studyRecordId")!)}`; return; }
     if (!user || !taskId || !activeSession) {
       return;
     }
@@ -256,6 +257,7 @@ export function SessionPageClient() {
   }
 
   function openCompletionModal() {
+    if (searchParams.get("studyRecordId")) { window.location.href = `/study#task-${encodeURIComponent(searchParams.get("studyRecordId")!)}`; return; }
     if (!activeSession) {
       return;
     }

@@ -19,7 +19,10 @@ from app.modules.users.models import User
 
 
 @pytest.fixture
-def setup():
+def setup(monkeypatch):
+    from app.modules.reasoning.task_decomposer import decompose_task
+    monkeypatch.setattr("app.modules.reasoning.generative.estimate_task", lambda db, payload: decompose_task(payload).model_copy(update={"generation_source":"llm", "model_name":"mock-model"}))
+    monkeypatch.setattr("app.modules.schedules.routes.order_tasks", lambda tasks, *args: ([t.id for t in tasks], {"generation_source":"llm", "model_name":"mock-model", "planning_explanation":"Mock AI ordering"}))
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(engine)
     with Session(engine, expire_on_commit=False) as db:
@@ -40,7 +43,9 @@ def login(db, user="a"):
 
 
 def join(client):
-    return client.post("/api/v1/study/enroll", json={"adult": True, "consent": True, "baseline_frequency": "often"})
+    response = client.post("/api/v1/study/enroll", json={"adult": True, "consent": True, "baseline_frequency": "often"})
+    if response.status_code == 200: client.post("/api/v1/study/ai-consent", json={"consent":True})
+    return response
 
 
 def task(client, estimate=30):
@@ -159,3 +164,37 @@ def test_manual_rehearsal_and_scheduler_review(setup):
     assert data["scheduler"]["reviewed"] == 1
     login(db,"b"); join(client)
     assert client.post(f'/api/v1/study/scheduler/{trial["id"]}/review',json=review).status_code == 404
+
+
+def test_study_rejects_rules_fallback(setup, monkeypatch):
+    client, db = setup
+    login(db); join(client)
+    from app.modules.reasoning.task_decomposer import decompose_task
+    monkeypatch.setattr("app.modules.reasoning.generative.estimate_task", lambda db,payload: decompose_task(payload))
+    response = client.post("/api/v1/study/tasks",json={"title":"Read five pages", "user_estimate_minutes":20})
+    assert response.status_code == 503
+    assert client.get("/api/v1/study/me").json()["tasks"] == []
+    db.add(AdminAccess(user_id="a")); db.commit()
+    assert client.get("/api/v1/study/admin/summary").json()["ai_calls"]["task_ai_call"] == {"attempts":1,"successes":0}
+
+
+def test_scheduler_failure_does_not_leave_new_tasks(setup, monkeypatch):
+    client, db = setup
+    login(db); join(client)
+    for _ in range(3):
+        row=task(client)
+        client.post(f'/api/v1/study/tasks/{row["id"]}/start',json={})
+        client.post(f'/api/v1/study/tasks/{row["id"]}/finish',json={"outcome":"completed","break_minutes":0,"scope_changed":False,"friction":"none","timing_source":"rehearsal","manual_minutes":20})
+    from app.modules.tasks.models import Task
+    before=len(db.scalars(select(Task)).all())
+    monkeypatch.setattr("app.modules.schedules.routes.order_tasks",lambda *args:(None,{"generation_source":"rules_fallback"}))
+    response=client.post("/api/v1/study/scheduler",json={"window_minutes":90,"tasks":[{"title":"Upcoming work", "user_estimate_minutes":20} for _ in range(3)]})
+    assert response.status_code==503
+    assert len(db.scalars(select(Task)).all())==before
+
+
+def test_existing_participant_needs_ai_data_consent(setup):
+    client, db=setup
+    login(db)
+    assert client.post("/api/v1/study/enroll",json={"adult":True,"consent":True,"baseline_frequency":"often"}).status_code==200
+    assert client.post("/api/v1/study/tasks",json={"title":"Read five pages","user_estimate_minutes":20}).status_code==403

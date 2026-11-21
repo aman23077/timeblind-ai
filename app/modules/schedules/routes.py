@@ -88,6 +88,8 @@ def generate_schedule(payload: ScheduleGenerateRequest, db: Session = Depends(ge
         {"task_id": task_id, "depends_on_task_id": prerequisite}
         for task_id, prerequisites in requirements.items() for prerequisite in sorted(prerequisites)
     ])
+    if payload.require_ai and metadata.get("generation_source") != "llm":
+        raise HTTPException(503, "An AI-generated schedule is required. Enable LLM planning and check provider availability; no rules schedule was saved.")
     blocks, unscheduled_raw = build_schedule_blocks(
         db=db,
         schedule_id=schedule.id,

@@ -80,6 +80,8 @@ def generate_structured(instructions: str, context: dict, output_type: type[T]) 
         category = "provider_error"
         try:
             code = exc.response.json().get("error", {}).get("code")
+            if code == "json_validate_failed":
+                category = "invalid_output"
             if isinstance(code, str) and code in DIAGNOSTIC_CODES:
                 category = code
         except (ValueError, AttributeError, TypeError):

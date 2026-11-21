@@ -93,6 +93,7 @@ export function TimeblindShell() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [activePage, setActivePage] = useState<AppPage>("dashboard");
+  useEffect(() => { const page = new URLSearchParams(window.location.search).get("page"); if (navItems.some(item => item.id === page)) setActivePage(page as AppPage); const date = new URLSearchParams(window.location.search).get("date"); if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) setScheduleForm(current => ({...current, planDate: date})); }, []);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -178,6 +179,7 @@ export function TimeblindShell() {
           const quantityValue = parseOptionalNumber(taskForm.quantityValue);
           const taskNotes = taskForm.notes.trim();
           const plan = await decomposeTask({
+            require_ai: true,
             user_id: user.id,
             title: taskForm.title,
             description: taskNotes,
@@ -282,6 +284,7 @@ export function TimeblindShell() {
       void (async () => {
         try {
           const generated = await generateSchedule({
+            require_ai: true,
             user_id: user.id,
             plan_date: scheduleForm.planDate,
             window_start: scheduleForm.windowStart,

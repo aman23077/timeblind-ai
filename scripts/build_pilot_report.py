@@ -333,6 +333,9 @@ Keep identifiable account data and pilot exports out of the public repository. R
 from pilot_report_details import add_details
 add_details(page, sub, p, table)
 
+from pilot_report_ai_revision import revise
+revise(doc, page, sub, p, table)
+
 doc.core_properties.title = "TimeBlindAI Implementation and Pilot Evaluation Draft"
 doc.core_properties.author = "Aarush Gaur and Aman Sachdeva"
 doc.core_properties.subject = "November 2026 BTP draft with participant results pending"

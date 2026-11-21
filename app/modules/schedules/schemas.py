@@ -76,6 +76,7 @@ class ScheduleDetail(ScheduleRead):
 
 
 class ScheduleGenerateRequest(BaseModel):
+    require_ai: bool = False
     user_id: str
     plan_date: date
     window_start: time

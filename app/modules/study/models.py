@@ -6,7 +6,15 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
 
-PROTOCOL = "nov2026-pilot-v1"
+PROTOCOL = "nov2026-ai-pilot-v3"
+
+
+class StudyEvidence(Base):
+    __tablename__ = "study_evidence"
+    enrollment_id: Mapped[str] = mapped_column(ForeignKey("study_enrollments.id"), index=True)
+    record_id: Mapped[str | None] = mapped_column(ForeignKey("study_tasks.id"), nullable=True)
+    kind: Mapped[str] = mapped_column(String(40))
+    payload: Mapped[dict] = mapped_column(JSON)
 
 
 class StudyTiming(Base):

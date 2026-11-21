@@ -4,6 +4,9 @@ import io
 import json
 import statistics
 import zipfile
+import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from datetime import timedelta
 from typing import Literal
 
@@ -17,7 +20,7 @@ from app.core.auth import aware, get_current_user
 from app.core.database import get_db, utc_now
 from app.modules.reasoning.task_decomposer import decompose_task
 from app.modules.sessions.models import SessionRecord
-from app.modules.study.models import PROTOCOL, StudyEnrollment, StudyFeedback, StudyTask, StudyTiming, StudyScheduleTrial
+from app.modules.study.models import PROTOCOL, StudyEnrollment, StudyFeedback, StudyTask, StudyTiming, StudyScheduleTrial, StudyEvidence
 from app.modules.tasks.models import Task, TaskStep
 from app.modules.tasks.schemas import TaskDecompositionRequest, TaskDifficulty, TaskType
 from app.modules.users.admin_routes import require_admin
@@ -40,7 +43,26 @@ class EnrollmentInput(BaseModel):
     baseline_frequency: Literal["never", "rarely", "sometimes", "often", "very_often"]
 
 
+class AIConsentInput(BaseModel):
+    consent: Literal[True]
+
+
+@router.post("/ai-consent")
+def ai_consent(payload: AIConsentInput, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    member = enrollment(db, user)
+    if not db.scalar(select(StudyEvidence.id).where(StudyEvidence.enrollment_id == member.id, StudyEvidence.kind == "ai_consent")):
+        db.add(StudyEvidence(enrollment_id=member.id, kind="ai_consent", payload={"version":"ai-pilot-v3", "consent":True}))
+        db.commit()
+    return {"saved": True}
+
+
+def require_ai_consent(db, member):
+    if not db.scalar(select(StudyEvidence.id).where(StudyEvidence.enrollment_id == member.id, StudyEvidence.kind == "ai_consent")):
+        raise HTTPException(403, "Confirm the AI data-use information on the study page before generating plans")
+
+
 class TaskInput(BaseModel):
+    description: str = Field(default="", max_length=2000)
     title: str = Field(min_length=5, max_length=180)
     task_type: TaskType = "study"
     difficulty: TaskDifficulty = "medium"
@@ -48,6 +70,7 @@ class TaskInput(BaseModel):
 
 
 class TrialInput(BaseModel):
+    start_at: datetime | None = None
     tasks: list[TaskInput] = Field(min_length=3, max_length=3)
     window_minutes: int = Field(ge=15, le=480)
 
@@ -55,25 +78,50 @@ class TrialInput(BaseModel):
 @router.post("/scheduler")
 def scheduler_trial(payload: TrialInput, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     member = enrollment(db, user)
+    require_ai_consent(db, member)
     count = db.scalar(select(func.count()).select_from(StudyTask).where(StudyTask.enrollment_id == member.id, StudyTask.outcome.in_(["completed", "unfinished"])))
     if count < 3:
         raise HTTPException(409, "Record three task attempts before the scheduler exercise")
-    from app.modules.schedules.planner import build_schedule_blocks
+    from app.modules.schedules.routes import generate_schedule
+    from app.modules.schedules.schemas import ScheduleGenerateRequest
     from app.core.database import new_id
-    start = utc_now()
+    local_zone = ZoneInfo(user.time_zone)
+    start = aware(payload.start_at).astimezone(local_zone) if payload.start_at else (utc_now() + timedelta(minutes=2)).astimezone(local_zone).replace(second=0, microsecond=0)
     end = start + timedelta(minutes=payload.window_minutes)
-    tasks = [Task(id=new_id(), user_id=user.id, title=t.title, task_type=t.task_type, difficulty=t.difficulty,
-                  estimated_minutes=t.user_estimate_minutes, priority="medium", status="pending", created_at=start) for t in payload.tasks]
-    blocks, deferred = build_schedule_blocks(db, new_id(), user.id, tasks, start, end, 5)
+    if end.date() != start.date():
+        raise HTTPException(422, "Choose a window that ends on the same day")
+    if start <= utc_now().astimezone(local_zone):
+        raise HTTPException(422, "Choose a future schedule start")
+    began = time.monotonic()
+    previous = db.scalar(select(StudyScheduleTrial).where(StudyScheduleTrial.enrollment_id == member.id).order_by(StudyScheduleTrial.created_at.desc()).limit(1))
+    previous_ids = previous.snapshot.get("created_task_ids", []) if previous else []
+    created_ids = []
+    try:
+        for index, t in enumerate(payload.tasks):
+            task = db.get(Task, previous_ids[index]) if index < len(previous_ids) else None
+            if task is None or task.user_id != user.id or task.status != "pending":
+                task = Task(id=new_id(), user_id=user.id, description="Upcoming work entered through the guided AI pilot", priority="medium", status="pending")
+                db.add(task)
+            task.title, task.task_type, task.difficulty, task.estimated_minutes = t.title, t.task_type, t.difficulty, t.user_estimate_minutes
+            created_ids.append(task.id)
+        db.flush()
+        result = generate_schedule(ScheduleGenerateRequest(user_id=user.id, plan_date=start.date(), window_start=start.time().replace(tzinfo=None), window_end=end.time().replace(tzinfo=None), break_minutes=5, require_ai=True), db)
+    except HTTPException as exc:
+        db.rollback()
+        db.add(StudyEvidence(enrollment_id=member.id, kind="schedule_ai_call", payload={"success": False, "status": exc.status_code, "latency_seconds": round(time.monotonic()-began, 3)}))
+        db.commit()
+        raise
+    blocks = result.time_blocks
     ordered = sorted(blocks, key=lambda b: b.start_at)
     checks = {"within_window": all(aware(b.start_at) >= start and aware(b.end_at) <= end for b in blocks),
               "no_overlap": all(aware(a.end_at) <= aware(b.start_at) for a, b in zip(ordered, ordered[1:])),
               "positive_duration": all(b.end_at > b.start_at for b in blocks)}
-    snapshot = {"kind": "hypothetical_scheduler_exercise", "window_minutes": payload.window_minutes,
-                "blocks": [{"title": b.title, "start_at": aware(b.start_at).isoformat(), "end_at": aware(b.end_at).isoformat(), "kind": b.kind} for b in blocks],
-                "deferred": [{"title": r.get("title"), "reason": r.get("reason")} for r in deferred], "checks": checks,
-                "task_count": len(tasks), "scheduled_tasks": sum(b.task_id is not None for b in blocks),
-                "guidance": "Five-minute breaks are included where feasible. Deferred tasks did not fit the available window. This exercise tests a proposed plan, not actual execution."}
+    snapshot = {"kind": "live_ai_schedule", "created_task_ids": created_ids, "schedule_id": result.id, "plan_date": result.plan_date.isoformat(), "window_minutes": payload.window_minutes,
+                "generation_source": result.generation_source, "model_name": result.model_name, "prompt_version": result.prompt_version,
+                "blocks": [{"id": b.id, "task_id": b.task_id, "title": b.title, "start_at": aware(b.start_at).isoformat(), "end_at": aware(b.end_at).isoformat(), "kind": b.kind} for b in blocks],
+                "deferred": [{"title": r.title, "reason": r.reason} for r in result.unscheduled_tasks], "checks": checks,
+                "guidance": result.planning_explanation or "The AI ordered your tasks; Python placed feasible work around events, deadlines, dependencies and breaks."}
+    db.add(StudyEvidence(enrollment_id=member.id, kind="schedule_ai_call", payload={"success": True, "model_name": result.model_name, "latency_seconds": round(time.monotonic()-began,3)}))
     row = StudyScheduleTrial(enrollment_id=member.id, snapshot=snapshot)
     db.add(row)
     db.commit()
@@ -92,6 +140,9 @@ def trial_review(trial_id: str, payload: TrialReview, db: Session = Depends(get_
 
 
 class OutcomeInput(BaseModel):
+    plan_helpful: int | None = Field(default=None, ge=1, le=5)
+    estimate_reasonable: int | None = Field(default=None, ge=1, le=5)
+    task_comments: str = Field(default="", max_length=1000)
     timing_source: Literal["timer", "recalled_real", "rehearsal"] = "timer"
     manual_minutes: float | None = Field(default=None, ge=1, le=1440, allow_inf_nan=False)
     outcome: Literal["completed", "unfinished"]
@@ -133,6 +184,9 @@ def task_data(row, db=None):
     result = {field: getattr(row, field) for field in fields}
     timing = db.scalar(select(StudyTiming).where(StudyTiming.record_id == row.id)) if db else None
     result["timing_source"] = timing.source if timing else "timer"
+    evidence = db.scalars(select(StudyEvidence).where(StudyEvidence.record_id == row.id)).all() if db else []
+    result["ai_plan"] = next((e.payload for e in evidence if e.kind == "ai_task_plan"), None)
+    result["task_feedback"] = next((e.payload for e in evidence if e.kind == "task_feedback"), None)
     for key in ("predicted_at", "started_at", "completed_at"):
         result[key] = aware(result[key]).isoformat() if result[key] else None
     result["steps"] = [{"title": s.title, "minutes": s.suggested_minutes} for s in db.scalars(
@@ -147,6 +201,7 @@ def status(response: Response, db: Session = Depends(get_db), user: User = Depen
     records = db.scalars(select(StudyTask).where(StudyTask.enrollment_id == member.id).order_by(StudyTask.created_at)).all() if member else []
     feedback = db.scalar(select(StudyFeedback).where(StudyFeedback.enrollment_id == member.id)) if member else None
     return {"protocol": PROTOCOL, "enrolled": member is not None, "withdrawn": bool(member and member.withdrawn_at),
+            "ai_consent": bool(member and db.scalar(select(StudyEvidence.id).where(StudyEvidence.enrollment_id == member.id, StudyEvidence.kind == "ai_consent"))),
             "schedule_trials": [{"id": r.id, "snapshot": r.snapshot, "review": r.review} for r in db.scalars(select(StudyScheduleTrial).where(StudyScheduleTrial.enrollment_id == member.id).order_by(StudyScheduleTrial.created_at)).all()] if member else [],
             "participant_code": member.id if member else None, "feedback_submitted": feedback is not None,
             "feedback": {key: getattr(feedback, key) for key in FeedbackInput.model_fields} if feedback else None,
@@ -186,10 +241,20 @@ def withdraw(db: Session = Depends(get_db), user: User = Depends(get_current_use
 @router.post("/tasks")
 def create_task(payload: TaskInput, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     member = enrollment(db, user)
-    # The user's guess is deliberately omitted from the rules input. No provider call.
-    plan = decompose_task(TaskDecompositionRequest(title=payload.title, task_type=payload.task_type,
-                                                 difficulty=payload.difficulty), 1.0, "low")
-    task = Task(user_id=user.id, title=payload.title, task_type=payload.task_type, difficulty=payload.difficulty,
+    require_ai_consent(db, member)
+    from app.modules.reasoning.generative import estimate_task
+    began = time.monotonic()
+    request = TaskDecompositionRequest(user_id=user.id, title=payload.title, description=payload.description, task_type=payload.task_type, difficulty=payload.difficulty)
+    baseline = decompose_task(request.model_copy(), 1.0, "low")
+    try:
+        plan = estimate_task(db, request)
+        if plan.generation_source != "llm":
+            raise HTTPException(503, "AI task planning is required for this pilot. Enable LLM_ENABLED and configure the provider key on the backend. No rules plan was saved; retry when AI is available.")
+    except HTTPException as exc:
+        db.add(StudyEvidence(enrollment_id=member.id, kind="task_ai_call", payload={"success":False, "status":exc.status_code,"latency_seconds":round(time.monotonic()-began,3)}))
+        db.commit()
+        raise
+    task = Task(user_id=user.id, title=payload.title, description=payload.description, task_type=payload.task_type, difficulty=payload.difficulty,
                 estimated_minutes=plan.personalized_estimate_minutes)
     db.add(task)
     db.flush()
@@ -197,11 +262,15 @@ def create_task(payload: TaskInput, db: Session = Depends(get_db), user: User = 
         db.add(TaskStep(task_id=task.id, title=step.title, order_index=step.order,
                         suggested_minutes=step.suggested_minutes, rationale=step.rationale))
     record = StudyTask(enrollment_id=member.id, task_id=task.id, title=payload.title, task_type=payload.task_type,
+                       prediction_method="llm-with-independent-rules-v3",
                        difficulty=payload.difficulty, user_estimate_minutes=payload.user_estimate_minutes,
-                       rules_estimate_minutes=plan.personalized_estimate_minutes, predicted_at=utc_now())
+                       rules_estimate_minutes=baseline.personalized_estimate_minutes, predicted_at=utc_now())
     db.add(record)
+    db.flush()
+    db.add(StudyEvidence(enrollment_id=member.id, record_id=record.id, kind="ai_task_plan", payload=plan.model_dump(mode="json")))
+    db.add(StudyEvidence(enrollment_id=member.id, record_id=record.id, kind="task_ai_call", payload={"success":True,"model_name":plan.model_name,"latency_seconds":round(time.monotonic()-began,3)}))
     db.commit()
-    return task_data(record)
+    return task_data(record, db)
 
 
 @router.post("/tasks/{record_id}/start")
@@ -253,6 +322,7 @@ def finish(record_id: str, payload: OutcomeInput, db: Session = Depends(get_db),
     if payload.timing_source != "timer":
         record.actual_minutes = payload.manual_minutes
     db.add(StudyTiming(record_id=record.id, source=payload.timing_source))
+    db.add(StudyEvidence(enrollment_id=record.enrollment_id, record_id=record.id, kind="task_feedback", payload={"plan_helpful":payload.plan_helpful,"estimate_reasonable":payload.estimate_reasonable,"comments":payload.task_comments}))
     record.scope_changed, record.outcome, record.friction = payload.scope_changed, payload.outcome, payload.friction
     session = db.get(SessionRecord, record.session_id)
     session.ended_at = session.actual_end = now
@@ -261,7 +331,7 @@ def finish(record_id: str, payload: OutcomeInput, db: Session = Depends(get_db),
     session.feedback_reasons = payload.friction
     task = db.get(Task, record.task_id)
     task.status = "completed" if payload.outcome == "completed" else "pending"
-    task.actual_minutes = round(record.actual_minutes) if payload.outcome == "completed" and payload.timing_source == "timer" else None
+    task.actual_minutes = round(record.actual_minutes) if payload.outcome == "completed" and payload.timing_source == "timer" and not payload.scope_changed else None
     from app.modules.behaviour.activity import ActivityMonitor
     db.execute(update(ActivityMonitor).where(ActivityMonitor.session_id == session.id).values(enabled=False))
     db.commit()
@@ -291,7 +361,9 @@ def study_data(db):
     ids = [row.id for row in members]
     records = db.scalars(select(StudyTask).where(StudyTask.enrollment_id.in_(ids)).order_by(StudyTask.created_at)).all()
     timing = {r.record_id: r.source for r in db.scalars(select(StudyTiming)).all()}
+    plans = {e.record_id: e.payload for e in db.scalars(select(StudyEvidence).where(StudyEvidence.enrollment_id.in_(ids), StudyEvidence.kind == "ai_task_plan")).all()}
     for r in records:
+        r.ai_estimate_minutes = plans.get(r.id, {}).get("personalized_estimate_minutes")
         r.timing_source = timing.get(r.id, "timer")
     responses = db.scalars(select(StudyFeedback).where(StudyFeedback.enrollment_id.in_(ids))).all()
     return members, records, responses
@@ -305,11 +377,12 @@ def summary_data(db):
     members, records, responses = study_data(db)
     valid = [row for row in records if eligible(row)]
     methods = {}
-    for name in ("user", "rules"):
-        errors = [abs(getattr(row, f"{name}_estimate_minutes") - row.actual_minutes) for row in valid]
+    for name in ("user", "rules", "ai"):
+        cohort = [row for row in valid if getattr(row, "ai_estimate_minutes", None) is not None] if name == "ai" else valid
+        errors = [abs(getattr(row, f"{name}_estimate_minutes") - row.actual_minutes) for row in cohort]
         per_person = []
         for member in members:
-            group = [abs(getattr(row, f"{name}_estimate_minutes") - row.actual_minutes) for row in valid if row.enrollment_id == member.id]
+            group = [abs(getattr(row, f"{name}_estimate_minutes") - row.actual_minutes) for row in cohort if row.enrollment_id == member.id]
             if group:
                 per_person.append(statistics.mean(group))
         methods[name] = {"tasks": len(errors), "participants": len(per_person),
@@ -326,7 +399,19 @@ def summary_data(db):
     scheduler = {"exercises": len(trials), "reviewed": sum(t.review is not None for t in trials),
                  "constraint_pass_count": sum(all(t.snapshot["checks"].values()) for t in trials),
                  "ratings": {k: [sum(t.review is not None and t.review[k] == n for t in trials) for n in range(1, 6)] for k in ("feasible", "ordering", "feedback_useful", "explanation_clear")}}
-    return {"scheduler": scheduler, "timing_sources": {k: sum(r.timing_source == k for r in records) for k in ("timer", "recalled_real", "rehearsal")}, "protocol": PROTOCOL, "consenting_participants": len(members), "recorded_tasks": len(records),
+    events = db.scalars(select(StudyEvidence).where(StudyEvidence.enrollment_id.in_([m.id for m in members]))).all()
+    ai_calls = {kind: {"attempts": sum(e.kind == kind for e in events), "successes": sum(e.kind == kind and e.payload.get("success") is True for e in events)} for kind in ("task_ai_call", "schedule_ai_call")}
+    task_reviews = {k: [sum(e.kind == "task_feedback" and e.payload.get(k) == n for e in events) for n in range(1,6)] for k in ("plan_helpful", "estimate_reasonable")}
+    from app.modules.schedules.models import TimeBlock
+    ids = {b["id"] for t in trials if t.snapshot.get("kind") == "live_ai_schedule" for b in t.snapshot["blocks"] if b.get("task_id")}
+    live_blocks = db.scalars(select(TimeBlock).where(TimeBlock.id.in_(ids))).all()
+    manual_ids = set(db.scalars(select(SessionRecord.time_block_id).where(SessionRecord.time_block_id.in_(ids), SessionRecord.feedback_notes.like("%[manual duration; rehearsal]%"))).all())
+    measured = [b for b in live_blocks if b.actual_end and b.status == "completed" and b.id not in manual_ids]
+    adherence = {"planned_task_blocks": len(ids), "completed_nonmanual_blocks": len(measured), "completed_by_planned_end": sum(aware(b.actual_end) <= aware(b.end_at) for b in measured), "manual_blocks_excluded": len(manual_ids), "missing_or_replaced_blocks": len(ids)-len(live_blocks)}
+    ai_cohort = [r for r in valid if r.ai_estimate_minutes is not None]
+    paired = {k: {"n":len(ai_cohort), "mae_minutes":round(statistics.mean(abs(getattr(r,k+"_estimate_minutes")-r.actual_minutes) for r in ai_cohort),2) if ai_cohort else None,
+                   "within_15_percent":round(100*sum(abs(getattr(r,k+"_estimate_minutes")-r.actual_minutes)<=15 for r in ai_cohort)/len(ai_cohort),2) if ai_cohort else None} for k in ("user","rules","ai")}
+    return {"ai_paired_comparison": paired, "adherence": adherence, "ai_calls": ai_calls, "task_review_ratings": task_reviews, "scheduler": scheduler, "timing_sources": {k: sum(r.timing_source == k for r in records) for k in ("timer", "recalled_real", "rehearsal")}, "protocol": PROTOCOL, "consenting_participants": len(members), "recorded_tasks": len(records),
             "started_tasks": sum(row.started_at is not None for row in records),
             "completed_tasks": sum(row.outcome == "completed" for row in records),
             "unfinished_tasks": sum(row.outcome == "unfinished" for row in records),
@@ -357,7 +442,7 @@ def export(db: Session = Depends(get_db)):
         write_csv(archive, "participants.csv", ["participant_code", "protocol", "baseline_frequency", "enrolled_at"],
                   [{"participant_code": m.id, "protocol": m.protocol, "baseline_frequency": m.baseline_frequency, "enrolled_at": aware(m.created_at).isoformat()} for m in members])
         # Exclude task titles, app user IDs, emails and free text from the report-safe export.
-        fields = ["participant_code", "record_id", "task_type", "difficulty", "user_estimate_minutes", "rules_estimate_minutes", "prediction_method", "predicted_at", "started_at", "completed_at", "elapsed_minutes", "break_minutes", "actual_minutes", "timing_source", "scope_changed", "outcome", "friction", "eligible"]
+        fields = ["participant_code", "record_id", "task_type", "difficulty", "user_estimate_minutes", "rules_estimate_minutes", "prediction_method", "predicted_at", "started_at", "completed_at", "elapsed_minutes", "break_minutes", "actual_minutes", "ai_estimate_minutes", "timing_source", "scope_changed", "outcome", "friction", "eligible"]
         rows = []
         for r in records:
             row = {key: getattr(r, key) for key in fields if hasattr(r, key)}
@@ -370,8 +455,12 @@ def export(db: Session = Depends(get_db)):
         write_csv(archive, "feedback.csv", fields, [{**{key: getattr(r, key) for key in fields if key != "participant_code"}, "participant_code": r.enrollment_id} for r in responses])
         trials = db.scalars(select(StudyScheduleTrial).where(StudyScheduleTrial.enrollment_id.in_([m.id for m in members]))).all()
         archive.writestr("scheduler.json", json.dumps([{"participant_code": t.enrollment_id, "trial_id": t.id, "checks": t.snapshot["checks"], "review": {k: v for k, v in (t.review or {}).items() if k != "comments"}} for t in trials], indent=2))
+        fields = ["participant_code", "record_id", "kind", "payload"]
+        evidence = db.scalars(select(StudyEvidence).where(StudyEvidence.enrollment_id.in_([m.id for m in members]))).all()
+        allowed = {"personalized_estimate_minutes", "estimate_lower_minutes", "estimate_upper_minutes", "generation_source", "model_name", "prompt_version", "success", "status", "latency_seconds", "plan_helpful", "estimate_reasonable"}
+        write_csv(archive, "evidence.csv", fields, [{"participant_code":e.enrollment_id, "record_id":e.record_id, "kind":e.kind, "payload":json.dumps({k:v for k,v in e.payload.items() if k in allowed})} for e in evidence])
         archive.writestr("summary.json", json.dumps(summary_data(db), indent=2))
-        archive.writestr("README.txt", "Consenting, non-withdrawn pilot records only. No email, task title, user ID or free text. Timing is server elapsed minus self-reported breaks. Study tasks use frozen unpersonalized rules, not LLM inference. Pseudonymous data is not anonymous. Store privately; do not commit participant exports.\n")
+        archive.writestr("README.txt", "Consenting, non-withdrawn pilot records only. No email, task title, user ID or free text. Timing is server elapsed minus self-reported breaks. New guided tasks require successful LLM plans; legacy rules records remain identified. AI predictions and provider attempts are in evidence.csv. Manual and recalled durations are excluded from prospective error. Pseudonymous data is not anonymous. Store privately; do not commit participant exports.\n")
     return Response(output.getvalue(), media_type="application/zip", headers={"Cache-Control": "no-store", "Content-Disposition": 'attachment; filename="timeblind-pilot.zip"'})
 
 
@@ -379,5 +468,13 @@ def export(db: Session = Depends(get_db)):
 def comments(response: Response, db: Session = Depends(get_db)):
     response.headers["Cache-Control"] = "no-store"
     _, _, responses = study_data(db)
-    return [{"participant_code": r.enrollment_id, "best_part": r.best_part,
-             "biggest_problem": r.biggest_problem, "suggestion": r.suggestion} for r in responses]
+    output = [{"participant_code": r.enrollment_id, "best_part": r.best_part,
+               "biggest_problem": r.biggest_problem, "suggestion": r.suggestion} for r in responses]
+    member_ids = [r.id for r in study_data(db)[0]]
+    for evidence in db.scalars(select(StudyEvidence).where(StudyEvidence.enrollment_id.in_(member_ids), StudyEvidence.kind == "task_feedback")).all():
+        if evidence.payload.get("comments"):
+            output.append({"participant_code":evidence.enrollment_id, "best_part":"Per-task review", "biggest_problem":evidence.payload["comments"], "suggestion":""})
+    for trial in db.scalars(select(StudyScheduleTrial).where(StudyScheduleTrial.enrollment_id.in_(member_ids))).all():
+        if trial.review and trial.review.get("comments"):
+            output.append({"participant_code":trial.enrollment_id, "best_part":"Scheduler review", "biggest_problem":trial.review["comments"], "suggestion":""})
+    return output

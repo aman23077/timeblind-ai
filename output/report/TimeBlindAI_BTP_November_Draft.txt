@@ -48,7 +48,7 @@ TimeBlindAI is a web-based productivity assistant for task duration estimation, 
 
 The system combines deterministic temporal reasoning with an optional pretrained language-model integration. Generated task plans and schedule-order proposals are checked by application logic, while a rules fallback supports operation when an external provider is unavailable. This integration is API inference rather than training a language model. Earlier small-scale duration checks did not establish that the model improved on the rules baseline.
 
-An exploratory participant pilot has been designed around prospective predictions and timed everyday tasks. Approximately twenty adults are to be recruited, with three task attempts per participant. The study records a participant's initial guess before revealing an independent rules estimate, followed by server timing, self-reported breaks, completion and scope information, and custom usability feedback. The analysis compares errors on the same eligible completed tasks and reports participant-level averages alongside task-level summaries.
+An exploratory participant pilot uses the original application through a guided study entry point. Participants receive genuine LLM task plans, use the original focus workspace and create saved AI-assisted schedules. Their own guesses and an independent rules baseline are retained before work starts. Each attempted task records its timing source, scope status and a short plan review. A separate scheduler review asks about feasibility, ordering and guidance. Human outcome results remain pending.
 
 Participant results are pending at the time of this draft. The report therefore distinguishes implemented functionality and saved synthetic checks from unmeasured human outcomes. The final abstract must replace this paragraph with the observed sample size, primary errors, feedback results and a conclusion limited to the pilot evidence.
 
@@ -90,7 +90,7 @@ The previous report reviewed time perception, digital behavioral support, human-
 
 Research reviewing time perception in ADHD discusses temporal-processing difficulties and variation across studies [1, 2]. These clinical findings motivate caution in terminology: an error in estimating a reading task is not a diagnosis, and a student convenience sample does not represent a clinical population. The present study consequently asks about everyday planning and software use without collecting diagnostic information.
 
-For this phase, the central comparison is deliberately narrow. A participant's prospective guess and a deterministic application estimate are recorded for the same task scope. Recorded work time provides an imperfect outcome measure. This comparison directly tests estimation behavior in the implemented workflow, while custom agreement questions describe the participants' experience of using it.
+The evaluation compares prospective human, rules and LLM duration predictions on eligible live-timed tasks with matching scope. The AI-success cohort and failed requests are reported explicitly. Manual recalled times and hypothetical rehearsals remain separate. Per-task ratings and scheduler reviews describe perceived usefulness; recorded execution of saved schedules supplies a distinct adherence measure.
 
 2 1 Relationship to existing planning tools
 
@@ -118,7 +118,7 @@ The ontology remains a conceptual description of the domain. In this implementat
 
 4 1 Data flow
 
-The participant authenticates, accepts study information and supplies task scope and an initial estimate. The study endpoint independently computes a rules estimate and saves both values before responding. Starting work records a server timestamp and a linked session. Finishing work saves elapsed time, reported breaks, outcome and scope status. An administrator can then inspect consent-filtered aggregates and export pseudonymous tables. The study record remains separate from ordinary editable task fields so later task edits do not rewrite the prospective comparison.
+After authentication and study enrollment, participants explicitly confirm the AI data-use information. Task descriptions and limited completed-task history may reach the configured provider; optional desktop activity is not included in these planning prompts. Plans and steps are saved as ordinary tasks. Starting work creates a shared session that the original focus workspace can resume. Its pilot completion action returns to the guided outcome and review form, preserving one timer and one study record.
 
 5 Implementation
 
@@ -126,9 +126,9 @@ The main application provides user registration and password login, authenticate
 
 5 1 Duration estimation and generative planning
 
-The deterministic decomposer uses task characteristics and programmed rules to derive a duration and steps. The main app also supports historical adjustments. An optional language-model integration uses Groq or OpenAI to propose task estimates and decomposition, and to propose schedule ordering. The backend checks structured outputs and can fall back to rules. This is inference with a pretrained provider model, not training or fine-tuning a language model on the project's small dataset.
+The deterministic decomposer supplies a comparison baseline from task characteristics. The main app supports historical adjustments and optional pretrained-model calls. In the guided AI pilot the latter is required for new plans: estimates, steps, assumptions and explanations are returned by the provider and validated by the backend. Structured output validation does not prove duration accuracy.
 
-The participant study uses a separate frozen configuration: deterministic decomposition, multiplier 1.0, no supplied starting estimate and no external provider call. This prevents the participant's own guess from mechanically influencing the comparator and avoids provider reliability becoming a hidden source of missing study records. The comparison does not evaluate the main app's personalized method or the LLM.
+The guided AI pilot requires a successful LLM response for each new task plan and saved schedule. It uses the same task estimator and scheduling route as the main application. Python still checks output structure and places feasible blocks. AI outages produce a visible failure, not a rules plan presented as AI. An independent unpersonalized rules estimate remains a comparator, and provider/model/prompt provenance is saved.
 
 5 2 Scheduling and interventions
 
@@ -146,7 +146,7 @@ We propose a short prospective pilot with approximately twenty adult volunteers 
 
 6 1 Task procedure
 
-Participants select tasks that have not yet started, define a clear finish point and enter task category, difficulty and an initial duration guess. The application saves that guess and a separate rules estimate before revealing the latter. Participants inspect the plan, may try the scheduler, and use the study timer while working. They report breaks and unrelated work at the end, specify whether the original scope was completed and indicate scope changes. A forgotten or unreliable timer is marked unfinished rather than treated as a valid duration observation.
+For duration evaluation, participants select unstarted work with a clear completion condition. The application records the initial guess, independent rules estimate and AI plan before revealing the result. Participants use the original focus workspace or its shared study timer, then return to the guided form to report breaks, completion, scope changes and per-task feedback. Recalled or hypothetical manual values support a quick interface rehearsal but are excluded from prospective accuracy.
 
 The target task scope is usually fifteen to sixty minutes, with longer work divided into concrete units. The study does not require participants to manufacture tasks to reach a quota. Participants who stop early can still provide feedback after an attempted task. The app estimate is visible during use and may influence pace; the resulting comparison is therefore not blinded.
 
@@ -186,7 +186,7 @@ The implemented system makes planning decisions and their recorded outcomes obse
 
 Interpretation is limited by convenience sampling, a short collection window, task diversity and repeated observations from the same people. Friends of the project team may provide more favorable feedback. Participants choose their own tasks, and scope can be difficult to express consistently. Break durations are self-reported; the server clock does not distinguish focused work from unrelated activity. A visible prediction may influence the outcome it is compared with.
 
-The pilot compares human guesses with one frozen rules method. It provides no randomized baseline condition for productivity gains, no long-term personalization trial and no causal estimate of reminder effectiveness. The optional Windows companion is not required and is outside the participant study; clinical state inference and distraction classification remain unvalidated. The five feedback questions are custom items with descriptive interpretation.
+The pilot now compares AI estimates against human guesses and independent rules where matching live outcomes exist. Historical rules-only pilot records remain separate. A guided path through the actual task and scheduling APIs replaces the earlier hypothetical scheduler exercise. There is still no randomized condition establishing causal productivity gains, clinical benefit or long-term personalization.
 
 Prior offline modeling also requires caution. Features such as the number of sessions eventually completed for a target task are unavailable when that task is first predicted. Such post-task features cannot support a prospective accuracy claim. New comparisons should use only information available before work starts, maintain a frozen evaluation set and keep synthetic data separate from consented human records.
 
@@ -208,7 +208,7 @@ Longer-term work can study sustained use, participant control over reminders, de
 
 TimeBlindAI has progressed from a conceptual Intelligent Time Orchestration System and responsive interface to an integrated application with authenticated task planning, scheduling, sessions, feedback, optional activity monitoring and administrator data access. Deterministic logic supplies a verifiable baseline, while optional generative planning extends the system without establishing superior predictive accuracy.
 
-The November evaluation design connects prospective human and rules estimates to recorded outcomes and custom usability feedback. Separate study snapshots, consent filtering and explicit eligibility rules support an auditable analysis. These mechanisms address the need for measurable evidence without confusing synthetic checks with participant outcomes.
+The November evaluation design connects prospective human, independent rules and AI estimates to recorded outcomes and custom usability feedback. Separate study snapshots, consent filtering and explicit eligibility rules support an auditable analysis. These mechanisms address the need for measurable evidence without confusing synthetic checks with participant outcomes.
 
 Participant findings remain pending in this draft. The submitted conclusion must state the actual cohort, the main accuracy and feedback findings and the limits of the evidence. Until those observations exist, the supported contribution is the implementation and the evaluation protocol, rather than a claim that the system improves productivity or timeblindness.
 
@@ -232,7 +232,7 @@ Study entry asks participants to confirm that they are at least eighteen years o
 
 The baseline question asks how often tasks take longer than initially expected, with never, rarely, sometimes, often and very often as options. This item describes the sample and has no diagnostic interpretation.
 
-For each task, participants enter a concrete title, category, difficulty and personal duration estimate before seeing the app prediction. At the end they report completion or unfinished work, break minutes, scope changes and the main friction reason.
+For each task, participants enter concrete scope, context, category, difficulty and their own duration guess before seeing the AI prediction. Outcomes record work-time source, completion, scope changes, friction, plan helpfulness, estimate reasonableness and optional comments.
 
 The app was easy to use.
 
@@ -278,7 +278,7 @@ Appendix D Reasoning and Scheduling Details
 
 The rules decomposer uses a base duration by task category, difficulty multipliers and task-specific quantity rules. Text keywords also help select an interpretation. The category baselines in the inspected code include 60 minutes for assignments, 35 for reading, 50 for study, 55 for writing and 65 for coding. Easy, medium and hard difficulty use multipliers of 0.85, 1.0 and 1.25. These are programmed defaults, not parameters learned from the November participant cohort.
 
-The main application can adjust duration using historical actual-to-estimate ratios and session feedback. Its historical adjustment is smoothed towards a prior and bounded rather than allowed to grow arbitrarily from a single unusual task. The study deliberately fixes the multiplier at 1.0. Consequently, its results must be described as an evaluation of the unpersonalized rules comparator, not the complete personalized system.
+Category defaults and historical calibration remain deterministic comparison mechanisms. New guided plans require successful LLM output. The independent rules comparator omits the personal guess, while AI receives task scope and limited historical outcomes. Separate method labels prevent older rules records from being mistaken for AI results.
 
 D 1 Feasibility and task decomposition
 
@@ -369,3 +369,35 @@ H 2 Qualitative feedback and negative results
 Read all optional responses before defining a short codebook. Possible categories include unclear task scope, difficulty locating controls, inaccurate timing, useful decomposition and confusing estimates; these are candidate codes, not observed themes. Count respondents mentioning a theme rather than counting repeated phrases from one person as separate users. If both authors code responses, describe how disagreements were reconciled rather than assuming agreement.
 
 A negative result should explain the failure pattern and its implications. If estimates are consistently too short, task scope or category defaults may need revision. If users appreciate decomposition but distrust durations, discuss those outcomes separately. If participation is low, report feasibility and barriers without claiming the planned sample was achieved. No inferential significance or productivity improvement is assumed in advance.
+
+Appendix I Guided AI Pilot Revision
+
+The revised workflow is a guided study mode for the original application. It does not substitute a generic scheduler for the project implementation. AI task plans are persisted as ordinary tasks and steps. The original focus workspace resumes the same active session; pilot completion returns to the task review form. The scheduling exercise now creates actual upcoming tasks and calls the original schedule generation route with AI required. Participants can open scheduled focus blocks directly and review the saved plan afterwards.
+
+AI-assisted scheduling is a hybrid implementation. A pretrained LLM proposes task order and explains its ordering; Python places work and enforces time windows, deadlines, dependencies, events and breaks. This is not model training or an unconstrained LLM calendar. The application does not return a rules schedule as a successful AI trial if the provider is disabled or unavailable.
+
+I 1 Scope changes and per task reviews
+
+Scope means the amount and finish condition of the work being estimated. Estimating five pages but completing ten changes scope. Taking longer to complete the original five pages does not. Scope-changed tasks are retained in the participation accounting and excluded from paired duration error. Every guided task's completion form asks whether the plan helped and whether the estimate seemed reasonable, using separate five-point ratings, alongside friction and optional written comments.
+
+Three timing modes are explicit: live timer, recalled real duration and hypothetical rehearsal. Neither manual mode enters primary prospective duration accuracy. Rehearsal values do not become ordinary task duration-training targets. Real accuracy still requires doing real work; allowing immediate manual entry cannot create a measured human outcome.
+
+I 2 Current integration evidence
+
+A live Groq scheduler ordering request using isolated synthetic inputs returned a valid LLM ordering. An initial task request failed provider-side JSON validation because the generated response exceeded the permitted step count. The task prompt was revised to prefer three to six useful steps, cap the count at twelve and check duration consistency. A subsequent live request to openai/gpt-oss-120b returned a 45-minute plan with five steps whose durations summed correctly. The revised task prompt is timeblind-v2.
+
+These are local integration observations, not participant results or a reliability-rate estimate. The initial failure must not be erased from the account of the check. Controlled regression tests use mocked provider output and cannot establish live provider accuracy. Render configuration and a complete hosted participant journey remain to be verified after deployment.
+
+I 3 Measures and interpretation
+
+Task accuracy uses prospective completed tasks with unchanged scope and valid live timing. Report human and rules results on their eligible cohort, and AI results with its explicit successful-plan sample size. The report-safe export records AI estimate values, model and prompt identifiers, per-task rating values and AI-attempt success/failure. Free text and task descriptions are omitted from that export.
+
+Scheduler constraint conformance is the percentage of saved plans passing the specified checks. Perceived usefulness is the share of reviews rating guidance four or five, with numerator and denominator. Recorded schedule adherence compares completed nonmanual blocks with their planned end times; original snapshots remain distinguishable from later schedule revisions. Manual-duration sessions are labeled and excluded from that execution measure. Hypothetical inspection alone does not supply adherence evidence.
+
+The admin summary separately reports planned task blocks, completed nonmanual blocks, completion by planned end, manual exclusions and missing or replaced blocks. Missing execution must not be counted as a successful completion or hidden by reporting only those who finished. These records depend on participants honestly starting and ending sessions; they do not independently verify attention.
+
+I 4 Deployment and remaining evidence
+
+Configure the Render backend with persistent DATABASE_URL, LLM_ENABLED=true, the selected LLM_PROVIDER and LLM_MODEL, a private provider key, and LLM_FAILURE_MODE=error for the AI pilot. Keep provider secrets on the backend. Restart or redeploy both services from the same source revision and verify a complete hosted journey before invitations. Existing participants must confirm the updated AI data-use information before new study provider calls.
+
+No participant sample, accuracy percentage or productivity benefit is manufactured in this draft. The final report requires the observed cohort and dates, provider attempts and failures, valid paired durations, per-task ratings, scheduler reviews and any measured execution. It also requires verified author contributions, current interface screenshots, final reference checks and actual signatures.
