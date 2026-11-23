@@ -356,8 +356,10 @@ def feedback(payload: FeedbackInput, db: Session = Depends(get_db), user: User =
 
 
 def study_data(db):
+    from app.modules.users.datasets import DatasetAccount
     members = db.scalars(select(StudyEnrollment).join(User, User.id == StudyEnrollment.user_id).where(
-        StudyEnrollment.withdrawn_at.is_(None), User.consent_to_research == "true")).all()
+        StudyEnrollment.withdrawn_at.is_(None), User.consent_to_research == "true",
+        User.id.not_in(select(DatasetAccount.user_id).where(DatasetAccount.source == "synthetic")))).all()
     ids = [row.id for row in members]
     records = db.scalars(select(StudyTask).where(StudyTask.enrollment_id.in_(ids)).order_by(StudyTask.created_at)).all()
     timing = {r.record_id: r.source for r in db.scalars(select(StudyTiming)).all()}

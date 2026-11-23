@@ -1,0 +1,513 @@
+{
+  "data_source": "synthetic",
+  "dataset_id": "btp-demo-2026-11-v1",
+  "human_participants": 0,
+  "simulation_profiles": 19,
+  "tasks": 152,
+  "statuses": {
+    "completed": 95,
+    "unfinished": 19,
+    "missed": 19,
+    "pending": 19
+  },
+  "sessions": 114,
+  "estimation": {
+    "n": 95,
+    "mae_minutes": 11.93,
+    "bias_actual_minus_estimate_minutes": -2.49,
+    "mape_actual_denominator_percent": 30.13,
+    "within_15_minutes_percent": 69.47,
+    "underestimates": 38,
+    "overestimates": 53
+  },
+  "categories": {
+    "admin": {
+      "n": 14,
+      "mae_minutes": 11.14,
+      "bias_actual_minus_estimate_minutes": 11.14,
+      "mape_actual_denominator_percent": 27.21,
+      "within_15_minutes_percent": 64.29,
+      "underestimates": 12,
+      "overestimates": 0
+    },
+    "assignment": {
+      "n": 10,
+      "mae_minutes": 8.1,
+      "bias_actual_minus_estimate_minutes": -3.7,
+      "mape_actual_denominator_percent": 16.29,
+      "within_15_minutes_percent": 90.0,
+      "underestimates": 3,
+      "overestimates": 6
+    },
+    "chore": {
+      "n": 10,
+      "mae_minutes": 3.4,
+      "bias_actual_minus_estimate_minutes": -1,
+      "mape_actual_denominator_percent": 12.83,
+      "within_15_minutes_percent": 100.0,
+      "underestimates": 4,
+      "overestimates": 6
+    },
+    "coding": {
+      "n": 11,
+      "mae_minutes": 23.36,
+      "bias_actual_minus_estimate_minutes": -23.36,
+      "mape_actual_denominator_percent": 58.98,
+      "within_15_minutes_percent": 27.27,
+      "underestimates": 0,
+      "overestimates": 11
+    },
+    "exercise": {
+      "n": 12,
+      "mae_minutes": 18,
+      "bias_actual_minus_estimate_minutes": 17.17,
+      "mape_actual_denominator_percent": 27.36,
+      "within_15_minutes_percent": 41.67,
+      "underestimates": 11,
+      "overestimates": 1
+    },
+    "reading": {
+      "n": 12,
+      "mae_minutes": 10.75,
+      "bias_actual_minus_estimate_minutes": -10.42,
+      "mape_actual_denominator_percent": 47.4,
+      "within_15_minutes_percent": 83.33,
+      "underestimates": 1,
+      "overestimates": 11
+    },
+    "study": {
+      "n": 14,
+      "mae_minutes": 7.36,
+      "bias_actual_minus_estimate_minutes": -1.5,
+      "mape_actual_denominator_percent": 13.69,
+      "within_15_minutes_percent": 78.57,
+      "underestimates": 5,
+      "overestimates": 8
+    },
+    "writing": {
+      "n": 12,
+      "mae_minutes": 13.08,
+      "bias_actual_minus_estimate_minutes": -12.42,
+      "mape_actual_denominator_percent": 37.75,
+      "within_15_minutes_percent": 75.0,
+      "underestimates": 2,
+      "overestimates": 10
+    }
+  },
+  "schedules": 19,
+  "nonoverlap_positive_duration_passes": 19,
+  "simulated_activity_intervals": 4104,
+  "simulated_app_switches": 1765,
+  "simulated_active_seconds": 16850.0,
+  "simulated_idle_seconds": 3670.0,
+  "computed_reviews": 19,
+  "participant_reviews": 0,
+  "llm_reviews": 0,
+  "people": [
+    {
+      "label": "SYNTHETIC P001",
+      "id": "02666875-4e27-56fb-95b5-16370158c878",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 23,
+        "bias_actual_minus_estimate_minutes": -21.4,
+        "mape_actual_denominator_percent": 65.01,
+        "within_15_minutes_percent": 40.0,
+        "underestimates": 1,
+        "overestimates": 4
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 23 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P002",
+      "id": "7a43f45d-55b2-5be0-aa10-bea6dc41a0d9",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 8.2,
+        "bias_actual_minus_estimate_minutes": -5,
+        "mape_actual_denominator_percent": 29.21,
+        "within_15_minutes_percent": 100.0,
+        "underestimates": 1,
+        "overestimates": 4
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 8.2 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P003",
+      "id": "7f01b134-5b36-5b1b-8d26-ab5369e85d79",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 13.2,
+        "bias_actual_minus_estimate_minutes": -5.6,
+        "mape_actual_denominator_percent": 33.09,
+        "within_15_minutes_percent": 60.0,
+        "underestimates": 2,
+        "overestimates": 2
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 13.2 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P004",
+      "id": "16700796-972a-5348-8da8-ad52441ec328",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 13.8,
+        "bias_actual_minus_estimate_minutes": -13.8,
+        "mape_actual_denominator_percent": 39.99,
+        "within_15_minutes_percent": 60.0,
+        "underestimates": 0,
+        "overestimates": 4
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 13.8 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P005",
+      "id": "114dddff-9c8e-55fc-a4bd-10e19136718b",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 10.2,
+        "bias_actual_minus_estimate_minutes": -7.8,
+        "mape_actual_denominator_percent": 27.24,
+        "within_15_minutes_percent": 80.0,
+        "underestimates": 1,
+        "overestimates": 4
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 10.2 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P006",
+      "id": "8d1ff86c-4608-5698-b6c7-286594d831ac",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 17.8,
+        "bias_actual_minus_estimate_minutes": -13.4,
+        "mape_actual_denominator_percent": 59.72,
+        "within_15_minutes_percent": 60.0,
+        "underestimates": 2,
+        "overestimates": 3
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 17.8 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P007",
+      "id": "5f0cf6cf-d858-58da-b40e-b9409d38ea62",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 10.4,
+        "bias_actual_minus_estimate_minutes": -6,
+        "mape_actual_denominator_percent": 27.96,
+        "within_15_minutes_percent": 80.0,
+        "underestimates": 2,
+        "overestimates": 3
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 10.4 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P008",
+      "id": "d978e87b-8899-5008-bcf7-a95454dda681",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 12.8,
+        "bias_actual_minus_estimate_minutes": 8.4,
+        "mape_actual_denominator_percent": 20.67,
+        "within_15_minutes_percent": 80.0,
+        "underestimates": 4,
+        "overestimates": 1
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 12.8 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P009",
+      "id": "b5eb7aa9-5309-524a-a24a-8c38f35b7112",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 11.2,
+        "bias_actual_minus_estimate_minutes": -4,
+        "mape_actual_denominator_percent": 35.72,
+        "within_15_minutes_percent": 40.0,
+        "underestimates": 2,
+        "overestimates": 2
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 11.2 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P010",
+      "id": "079407e4-b8c8-5808-94e7-59499a97800c",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 9,
+        "bias_actual_minus_estimate_minutes": -1.4,
+        "mape_actual_denominator_percent": 19.8,
+        "within_15_minutes_percent": 80.0,
+        "underestimates": 1,
+        "overestimates": 4
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 9 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P011",
+      "id": "95055408-d9d5-57d9-ac1b-12d37a0afdca",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 10.8,
+        "bias_actual_minus_estimate_minutes": 3.2,
+        "mape_actual_denominator_percent": 23.25,
+        "within_15_minutes_percent": 80.0,
+        "underestimates": 2,
+        "overestimates": 3
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 10.8 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P012",
+      "id": "6a0ccf46-3c7a-5f50-b22a-9a83c369358b",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 8.8,
+        "bias_actual_minus_estimate_minutes": -5.2,
+        "mape_actual_denominator_percent": 27.72,
+        "within_15_minutes_percent": 80.0,
+        "underestimates": 1,
+        "overestimates": 4
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 8.8 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P013",
+      "id": "d75cb568-8303-5ca7-b09c-bac20ee41bff",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 5.2,
+        "bias_actual_minus_estimate_minutes": 2,
+        "mape_actual_denominator_percent": 12.81,
+        "within_15_minutes_percent": 80.0,
+        "underestimates": 2,
+        "overestimates": 3
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 5.2 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P014",
+      "id": "870858c5-b350-5309-bc02-47fb4c47ed0a",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 7.4,
+        "bias_actual_minus_estimate_minutes": -3.8,
+        "mape_actual_denominator_percent": 17.38,
+        "within_15_minutes_percent": 100.0,
+        "underestimates": 1,
+        "overestimates": 4
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 7.4 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P015",
+      "id": "8a919207-6b55-574b-af9d-1be7933c80b6",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 17,
+        "bias_actual_minus_estimate_minutes": 9.8,
+        "mape_actual_denominator_percent": 34.11,
+        "within_15_minutes_percent": 40.0,
+        "underestimates": 3,
+        "overestimates": 1
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 17 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P016",
+      "id": "258e4d88-f0dc-5851-9ada-962b47af4ec3",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 8.4,
+        "bias_actual_minus_estimate_minutes": 2.4,
+        "mape_actual_denominator_percent": 16.92,
+        "within_15_minutes_percent": 80.0,
+        "underestimates": 3,
+        "overestimates": 2
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 8.4 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P017",
+      "id": "e43e3f9c-208a-5ef8-b571-ac58be985125",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 13.4,
+        "bias_actual_minus_estimate_minutes": 3.8,
+        "mape_actual_denominator_percent": 30.73,
+        "within_15_minutes_percent": 80.0,
+        "underestimates": 3,
+        "overestimates": 2
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 13.4 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P018",
+      "id": "e8abad7f-0a2d-54ef-932e-6ecf9462285d",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 11.6,
+        "bias_actual_minus_estimate_minutes": 11.6,
+        "mape_actual_denominator_percent": 21.61,
+        "within_15_minutes_percent": 60.0,
+        "underestimates": 5,
+        "overestimates": 0
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 11.6 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    },
+    {
+      "label": "SYNTHETIC P019",
+      "id": "6d219487-0636-5a6b-9da8-6338cfe30ac0",
+      "tasks": 8,
+      "statuses": {
+        "completed": 5,
+        "unfinished": 1,
+        "missed": 1,
+        "pending": 1
+      },
+      "estimation": {
+        "n": 5,
+        "mae_minutes": 14.4,
+        "bias_actual_minus_estimate_minutes": -1.2,
+        "mape_actual_denominator_percent": 29.59,
+        "within_15_minutes_percent": 40.0,
+        "underestimates": 2,
+        "overestimates": 3
+      },
+      "computed_review": "SYNTHETIC history: 5 completed examples; rules MAE 14.4 minutes. Inspect task scope before changing estimates. This is a deterministic computed summary, not participant feedback or an LLM review."
+    }
+  ],
+  "limitations": [
+    "All profiles, durations, task outcomes and desktop intervals are generated, not human observations.",
+    "Metrics describe this simulation and generator assumptions, not productivity gains or real-world accuracy.",
+    "No real email addresses, diagnoses, demographics, consent or subjective ratings are invented.",
+    "No LLM was called by the seeder; summaries are computed from synthetic records."
+  ]
+}

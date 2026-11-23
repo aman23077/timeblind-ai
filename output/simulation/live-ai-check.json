@@ -1,0 +1,36 @@
+{
+  "source": "live provider check on synthetic tasks",
+  "human_observations": 0,
+  "created_at": "2026-11-23T09:45:00.054335+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "attempts": 2,
+  "successes": 2,
+  "results": [
+    {
+      "data_source": "synthetic",
+      "task_id": "093c8d8d-e60f-5fe2-8256-caba977b24db",
+      "simulated_actual_minutes": 47,
+      "rules_minutes": 62,
+      "status": "ok",
+      "source": "llm",
+      "model": "openai/gpt-oss-120b",
+      "prompt_version": "timeblind-v2",
+      "ai_minutes": 80,
+      "latency_seconds": 3.052
+    },
+    {
+      "data_source": "synthetic",
+      "task_id": "0a5c4491-84fb-56dd-81d7-fc2e0992014b",
+      "simulated_actual_minutes": 25,
+      "rules_minutes": 25,
+      "status": "ok",
+      "source": "llm",
+      "model": "openai/gpt-oss-120b",
+      "prompt_version": "timeblind-v2",
+      "ai_minutes": 120,
+      "latency_seconds": 2.228
+    }
+  ],
+  "limitations": "Tiny integration check. Simulated outcome comparisons are not human accuracy; no participant ratings collected."
+}

@@ -28,6 +28,13 @@ def require_admin(user: User = Depends(get_current_user), db: Session = Depends(
 router = APIRouter(dependencies=[Depends(require_admin)])
 
 
+@router.get("/simulation")
+def simulation(response: Response, db: Session = Depends(get_db)):
+    from app.modules.users.simulation import simulation_summary
+    response.headers["Cache-Control"] = "no-store"
+    return simulation_summary(db)
+
+
 @router.get("/export")
 def export(user_id: str | None = None, source: Literal["all", "synthetic", "unverified"] = "all", db: Session = Depends(get_db)):
     if user_id and db.get(User, user_id) is None:
