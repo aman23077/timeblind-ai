@@ -155,7 +155,9 @@ def test_csrf_and_rate_limit(setup):
     assert client.post("/api/v1/auth/login", json=data, headers={"X-TimeBlind-Client": ""}).status_code == 403
     for _ in range(10):
         assert client.post("/api/v1/auth/login", json=data).status_code == 401
-    assert client.post("/api/v1/auth/login", json=data).status_code == 429
+    limited = client.post("/api/v1/auth/login", json=data)
+    assert limited.status_code == 429
+    assert 1 <= int(limited.headers["Retry-After"]) <= 900
 
 
 def test_expired_reset_and_email_delivery(setup, monkeypatch):

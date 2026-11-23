@@ -1,0 +1,17 @@
+user_id,plan_date,status,generated_by,id,created_at,updated_at,scenario_id,expected_policy,data_source
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,b8fb3e57-83ce-5f54-8ff2-f340ef4ab9d7,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,upcoming_5_minutes,upcoming,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,cb1751de-9b1d-50d3-9393-4b060ec0db0f,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,upcoming_6_minutes,none,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,f23c5793-22c1-5250-94e1-69465f2fc0f8,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,late_4_minutes,none,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,b7ea74a2-1550-5cef-9829-4135fe8d10d0,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,late_5_minutes,late_start,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,18d02910-d578-5403-a369-568080b3d575,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,normal,not_applicable,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,3dddcc05-17e6-5c51-ad61-0899c4ed75b1,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,over_capacity,not_applicable,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,91fb0e9c-f3a1-59a9-8746-07d6641f17ea,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,expired_window,not_applicable,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,b5be7945-f114-534c-9cbf-e0a678a96962,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,all_too_large,not_applicable,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,f29ffcd2-3c10-5ce9-82a8-a3bc31918735,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,event_gap,not_applicable,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,fe2aa4c8-44a6-53da-8fc2-211c5e781cef,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,dependency,not_applicable,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,9d9afe0c-27ef-5282-9fa4-2cd490f1c142,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,completed_task,not_applicable,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,b04d1775-bd4b-50d9-a5fb-b2be922f21bd,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,deadline,not_applicable,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,c824687f-4d2f-53f7-855c-fcafc7ddf8eb,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,impossible_deadline,not_applicable,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,3cb39a8b-075d-5305-ab16-defb2359d3a5,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,active_overrun,not_applicable,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,79aa1ff3-f256-55c7-ad86-0e67c7b5c81c,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,remaining_fills_window,not_applicable,synthetic
+c9ab358f-f887-5c1d-8457-b90ec725c6e5,2026-10-01,draft,adaptive_rules,41550b41-e8af-5519-80ef-fec589bfdc7c,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,breaks,not_applicable,synthetic

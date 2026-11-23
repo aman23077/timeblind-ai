@@ -1,0 +1,3 @@
+session_id,remaining_minutes,reported_at,id,created_at,updated_at,scenario_id,expected_policy,data_source
+84825aea-05f1-5ad9-b43a-2881b5f2170e,35,2026-10-01T10:00:00+00:00,82d327f7-6b0e-5d02-b7d1-0369ef12955c,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,active_overrun,not_applicable,synthetic
+1c9839cf-227d-5012-b800-a08be94bfcb1,40,2026-10-01T10:00:00+00:00,2f1f7d3d-2d6d-5d6d-94fc-e912c0c1570a,2026-10-01T10:00:00+00:00,2026-10-01T10:00:00+00:00,remaining_fills_window,not_applicable,synthetic

@@ -145,7 +145,8 @@ def rate_limit(db: Session, request: Request, email: str):
         ).values(attempts=AuthRateLimit.attempts + 1))
         db.commit()
         if not updated.rowcount:
-            raise HTTPException(429, "Too many attempts. Try again in 15 minutes.", headers={"Retry-After": "900"})
+            remaining = max(1, (window + 1) * 900 - int(now.timestamp()))
+            raise HTTPException(429, "Too many attempts. Wait for the retry interval before trying again.", headers={"Retry-After": str(remaining)})
 
 
 async def require_workspace_access(request: Request, user: User = Depends(get_current_user), db: Session = Depends(get_db)):

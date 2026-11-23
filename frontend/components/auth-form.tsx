@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { loginUser, registerUser, resetPassword } from "../lib/api";
+import { ApiError, loginUser, registerUser, resetPassword } from "../lib/api";
 import type { UserDetail } from "../lib/api";
 
 export function AuthForm({ onAuthenticated }: { onAuthenticated: (user: UserDetail) => void }) {
@@ -11,10 +11,19 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated: (user: UserDeta
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [retryAt, setRetryAt] = useState(0);
+  const [waitSeconds, setWaitSeconds] = useState(0);
+  useEffect(() => {
+    if (!retryAt) return;
+    const tick = () => setWaitSeconds(Math.max(0, Math.ceil((retryAt-Date.now())/1000)));
+    tick();
+    const timer = window.setInterval(tick,1000);
+    return () => window.clearInterval(timer);
+  }, [retryAt]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || waitSeconds > 0) return;
     const form = event.currentTarget;
     const data = new FormData(form);
     const password = String(data.get("password") ?? "");
@@ -46,6 +55,10 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated: (user: UserDeta
         onAuthenticated(user);
       }
     } catch (failure) {
+      if (failure instanceof ApiError && failure.status === 429) {
+        setRetryAt(Date.now()+failure.retryAfterSeconds*1000);
+        setWaitSeconds(failure.retryAfterSeconds);
+      }
       setError(failure instanceof Error ? failure.message : "Please try again.");
     } finally {
       setBusy(false);
@@ -61,6 +74,7 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated: (user: UserDeta
   return (
     <form key={mode} className="onboarding-card welcome-onboarding-card" onSubmit={submit}>
       <h2>{mode === "login" ? "Log in to your workspace" : mode === "register" ? "Create your account" : "Password setup/reset"}</h2>
+      {waitSeconds > 0 && <p role="status">Please wait {Math.floor(waitSeconds/60)}m {waitSeconds%60}s before another attempt. Repeated attempts will not restore access sooner.</p>}
       <div className="session-action-row">
         <button type="button" className="ghost-button" aria-pressed={mode === "login"} disabled={busy} onClick={() => changeMode("login")}>Log in</button>
         <button type="button" className="ghost-button" aria-pressed={mode === "register"} disabled={busy} onClick={() => changeMode("register")}>Register</button>
@@ -98,7 +112,7 @@ export function AuthForm({ onAuthenticated }: { onAuthenticated: (user: UserDeta
         </select></label>
         <label className="consent-card"><input name="consentToResearch" type="checkbox" /><span>I agree to the optional use of my task timing, feedback, and app activity (if I enable monitoring) for the academic project.</span></label>
       </> : null}
-      <button type="submit" disabled={busy}>{busy ? "Please wait…" : mode === "login" ? "Log in securely" : mode === "register" ? "Create account" : "Save password"}</button>
+      <button type="submit" disabled={busy || waitSeconds > 0}>{busy ? "Please wait…" : mode === "login" ? "Log in securely" : mode === "register" ? "Create account" : "Save password"}</button>
       {mode !== "reset" ? <button className="ghost-button" type="button" disabled={busy} onClick={() => changeMode("reset")}>Password setup/reset</button> : null}
       {error ? <p role="alert" className="error-banner">{error}</p> : null}
       {message ? <p role="status">{message}</p> : null}

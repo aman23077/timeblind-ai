@@ -273,6 +273,10 @@ export function disableActivity(sessionId: string, userId: string) {
   return request<{ enabled: boolean }>(`/api/v1/activity/sessions/${sessionId}/disable?user_id=${encodeURIComponent(userId)}`, { method: "POST" });
 }
 
+export class ApiError extends Error {
+  constructor(message: string, public status: number, public retryAfterSeconds = 0) { super(message); }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...options,
@@ -286,6 +290,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
+    if (response.status === 429) {
+      const header = response.headers.get("Retry-After");
+      const seconds = header && /^\d+$/.test(header) ? Number(header) : header ? Math.ceil((Date.parse(header) - Date.now()) / 1000) : 900;
+      const delay = Number.isFinite(seconds) ? Math.max(1, Math.min(seconds, 3600)) : 900;
+      throw new ApiError(`Too many requests. Please wait about ${Math.ceil(delay / 60)} minute(s) before trying again. This does not mean your password is incorrect.`, 429, delay);
+    }
     if (response.status === 401 && !path.startsWith("/api/v1/auth/")) {
       window.dispatchEvent(new Event("timeblind-auth-expired"));
     }

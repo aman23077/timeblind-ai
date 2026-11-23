@@ -10,6 +10,12 @@ Restart both backend and frontend. The backend startup creates credential, sessi
 
 The frontend proxies `/api/v1/*` requests through Next.js to keep authentication cookies on the frontend origin. Set `TIMEBLIND_BACKEND_URL` in the frontend server environment to select the backend. Existing `NEXT_PUBLIC_API_BASE_URL` remains a fallback and supplies the Windows companion's address. The default is `http://127.0.0.1:8000`.
 
+## Login cooldown and administrator pages
+
+A 429 response means the request limit has been reached; it does not confirm whether the password was correct. Stop retrying until the current 15-minute window ends. The backend supplies the remaining wait in `Retry-After`; the login form displays a countdown and temporarily disables submission. A proxy-generated 429 without that header uses a 15-minute fallback. The limit itself remains enabled.
+
+Sign in with an existing administrator account and its ordinary account password, then open `/admin` for all entries, `/admin/simulation` for the generated demonstration cohort, or `/study/admin` for participant study results. The recovery key is used only in **Password setup/reset**, not as the login password. Administrator permissions and records belong to the connected database: a local account or local seed does not automatically appear on Render.
+
 ## Persistent recovery key
 
 Open **Password setup/reset**, enter the existing account email, paste the administrator's recovery key, and choose a password. The same key works for all accounts, is reusable, and remains valid until rotated. The backend stores its SHA-256 hash in the recovery_keys table. Anyone holding this key can reset any account, including an administrator account.

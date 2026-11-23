@@ -1,0 +1,265 @@
+{
+  "policies": [
+    {
+      "id": "steady_focus",
+      "pattern": "steady",
+      "expected": "none"
+    },
+    {
+      "id": "two_legitimate_switches",
+      "pattern": "three_runs",
+      "expected": "none",
+      "switches": 2
+    },
+    {
+      "id": "three_switches_below_threshold",
+      "pattern": "four_runs",
+      "expected": "none",
+      "switches": 3
+    },
+    {
+      "id": "four_switches_at_threshold",
+      "pattern": "five_runs",
+      "expected": "context_switches",
+      "switches": 4
+    },
+    {
+      "id": "nine_sustained_switches",
+      "pattern": "burst",
+      "expected": "context_switches",
+      "switches": 9
+    },
+    {
+      "id": "brief_alt_tab",
+      "pattern": "brief",
+      "expected": "none",
+      "switches": 0
+    },
+    {
+      "id": "idle_118_seconds",
+      "pattern": "idle",
+      "expected": "none",
+      "idle": 118
+    },
+    {
+      "id": "idle_120_seconds",
+      "pattern": "idle",
+      "expected": "idle",
+      "idle": 120
+    },
+    {
+      "id": "idle_180_seconds",
+      "pattern": "idle",
+      "expected": "idle",
+      "idle": 180
+    },
+    {
+      "id": "unknown_observation_gap",
+      "pattern": "unknown",
+      "expected": "none"
+    },
+    {
+      "id": "low_coverage_switches",
+      "pattern": "sparse",
+      "expected": "none"
+    },
+    {
+      "id": "stale_monitor",
+      "pattern": "burst",
+      "expected": "none",
+      "stale": true
+    },
+    {
+      "id": "disabled_monitor",
+      "pattern": "burst",
+      "expected": "none",
+      "disabled": true
+    },
+    {
+      "id": "slippage_4_minutes",
+      "pattern": "steady",
+      "expected": "none",
+      "overrun": 4,
+      "duration": 20
+    },
+    {
+      "id": "slippage_5_minutes",
+      "pattern": "steady",
+      "expected": "slippage",
+      "overrun": 5,
+      "duration": 25
+    },
+    {
+      "id": "slippage_below_fraction",
+      "pattern": "steady",
+      "expected": "none",
+      "overrun": 5,
+      "duration": 30
+    },
+    {
+      "id": "slippage_priority_over_switches",
+      "pattern": "burst",
+      "expected": "slippage",
+      "overrun": 10,
+      "duration": 30
+    },
+    {
+      "id": "upcoming_5_minutes",
+      "pattern": "reminder",
+      "expected": "upcoming",
+      "start_offset": 5
+    },
+    {
+      "id": "upcoming_6_minutes",
+      "pattern": "reminder",
+      "expected": "none",
+      "start_offset": 6
+    },
+    {
+      "id": "late_4_minutes",
+      "pattern": "reminder",
+      "expected": "none",
+      "start_offset": -4
+    },
+    {
+      "id": "late_5_minutes",
+      "pattern": "reminder",
+      "expected": "late_start",
+      "start_offset": -5
+    },
+    {
+      "id": "cooldown_suppresses_repeat",
+      "pattern": "burst",
+      "expected": "none",
+      "cooldown": 10
+    },
+    {
+      "id": "minimal_cooldown_suppresses_repeat",
+      "pattern": "burst",
+      "expected": "none",
+      "cooldown": 20
+    }
+  ],
+  "schedules": [
+    {
+      "id": "normal",
+      "window": 120,
+      "durations": [
+        20,
+        30,
+        25
+      ]
+    },
+    {
+      "id": "over_capacity",
+      "window": 60,
+      "durations": [
+        20,
+        90,
+        25
+      ]
+    },
+    {
+      "id": "expired_window",
+      "window": -1,
+      "durations": [
+        20,
+        30
+      ],
+      "must_schedule": false
+    },
+    {
+      "id": "all_too_large",
+      "window": 10,
+      "durations": [
+        20,
+        30
+      ],
+      "must_schedule": false
+    },
+    {
+      "id": "event_gap",
+      "window": 120,
+      "durations": [
+        20,
+        30,
+        25
+      ],
+      "event": [
+        25,
+        60
+      ]
+    },
+    {
+      "id": "dependency",
+      "window": 120,
+      "durations": [
+        20,
+        30,
+        25
+      ],
+      "dependency": true
+    },
+    {
+      "id": "completed_task",
+      "window": 120,
+      "durations": [
+        20,
+        30,
+        25
+      ],
+      "completed": true
+    },
+    {
+      "id": "deadline",
+      "window": 120,
+      "durations": [
+        20,
+        30,
+        25
+      ],
+      "deadline": 25
+    },
+    {
+      "id": "impossible_deadline",
+      "window": 120,
+      "durations": [
+        20,
+        30,
+        25
+      ],
+      "deadline": 10
+    },
+    {
+      "id": "active_overrun",
+      "window": 90,
+      "durations": [
+        25,
+        20,
+        25
+      ],
+      "remaining": 35
+    },
+    {
+      "id": "remaining_fills_window",
+      "window": 30,
+      "durations": [
+        25,
+        20
+      ],
+      "remaining": 40,
+      "must_schedule": false
+    },
+    {
+      "id": "breaks",
+      "window": 180,
+      "durations": [
+        30,
+        30,
+        30,
+        30
+      ],
+      "break": 10
+    }
+  ]
+}
